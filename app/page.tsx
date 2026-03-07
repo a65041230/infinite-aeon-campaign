@@ -412,7 +412,7 @@ export default function Home() {
                     <div className="text-red-500 text-xs font-bold tracking-widest">APEX</div>
                     <div className="text-red-700/80 text-[10px]">// 概念兵裝</div>
                   </div>
-                  <h3 className="text-xl font-bold text-white uppercase tracking-wider mb-4">Nexus_Apex</h3>
+                  <h3 className="text-xl font-bold text-white uppercase tracking-wider mb-4">Infinite_Aeon_Apex</h3>
                   <div className="text-2xl text-red-500 font-bold mb-6 font-sans">
                     <span className="text-sm text-red-900 mr-1">TWD</span>19,800+
                   </div>
