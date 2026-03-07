@@ -1,0 +1,14 @@
+{
+  "format": "gemini-voyager.chat.v1",
+  "url": "https://gemini.google.com/app/f4b8561ffd2f3470",
+  "exportedAt": "2026-03-03T13:19:20.224Z",
+  "count": 1,
+  "title": "防災概念包",
+  "items": [
+    {
+      "user": "",
+      "assistant": "簡單來說：**Freepik 是「素材庫」，不是「動畫產生器」。**\n你可以從 Freepik 下載高品質的素材，但要把它變成 **JSON (Lottie)** 動畫，你還需要經過 **Adobe Illustrator (AI)** 分層，以及 **After Effects (AE)** 或 **Lottie Creator** 來輸出。\n既然你強調「**不要卡通感**」，在 Freepik 挑選素材時就要特別小心，因為那裡 80% 的向量圖都偏向可愛或扁平化。為了符合 **Nexus Shield** 的軍事寫實風格，我建議你採取以下策略：\n\n---\n\n### 🛠️ 如何利用 Freepik 製作非卡通感的 JSON 動畫？\n\n#### 1. 素材篩選：避開「Vector」，找「Isometric」或「Technical Drawing」\n不要搜尋 `Backpack icon`（會太卡通）。請搜尋：\n\n- **Tactical backpack isometric**：這種等距視角比較像專業的說明圖。\n- **Military gear technical drawing**：這種線稿風格配合全息投影特效（HUD）非常有科技感。\n- **Photorealistic survival equipment**：找高品質的 PSD 去背圖（雖然 JSON 跑點陣圖會比較大，但質感最好）。\n\n#### 2. 製作流程 (核心四步驟)\n\n1. **下載素材：** 在 Freepik 下載 **EPS** 或 **AI** 格式的檔案。\n2. **分層處理 (AI)：** 打開 Illustrator，把你想要動的部分（例如：拉鍊、展開的面板、濾水器的水流）**全部拆成獨立圖層**。\n3. **動態製作 (AE)：** 將 AI 檔匯入 After Effects。\n  - *關鍵：* 不要讓它像卡通那樣跳動，要用「線性展開」或「淡入掃描」的動態，模擬軍用螢幕的感覺。\n4. **輸出 JSON：** 使用插件 **Bodymovin** 或上傳到 **LottieFiles** 轉換。\n\n---\n\n### ⚠️ 特別注意：JSON 的限制\n\n- **點陣圖 vs 向量圖：** 如果你想要「極度寫實」（用照片），JSON 檔案會變得非常大（因為它要把圖片編碼進去）。\n- **建議做法：** 用 Freepik 的**向量線稿**做底，搭配發光的**全息特效**。這樣既能保持寫實的軍事感，檔案又輕，網頁跑起來才順。\n\n---\n\n### 👨‍✈️ 專業建議\n既然你要的是那種「末日寫實 + 科技標註」的感覺，我建議你找 **「Blueprint」(藍圖)** 風格的素材。\n**你想讓我幫你擬一份「Freepik 關鍵字清單」，讓你直接貼去搜尋最符合 Nexus Shield 風格的素材嗎？** 這樣可以省下你一張一張過濾卡通圖的時間。",
+      "starred": false
+    }
+  ]
+}
