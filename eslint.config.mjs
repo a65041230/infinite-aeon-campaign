@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // 獨立的像素小島小遊戲（純 HTML/JS，不屬於 Next.js 專案）
+    "pixel-island/**",
   ]),
 ]);
 

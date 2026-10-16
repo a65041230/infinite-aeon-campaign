@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>像素小島</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Silkscreen&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game" aria-label="像素小島遊戲畫面"></canvas>
+
+<div id="hud">
+  <div id="hud-left">
+    <div class="panel" id="hud-info">
+      <div id="clock">☀️ 08:30</div>
+      <div id="stats">🪙 0　🐟 0　🍎 0</div>
+    </div>
+    <canvas id="minimap" title="小地圖"></canvas>
+  </div>
+  <div id="hud-right" class="panel">
+    <button id="btn-time" title="切換白天／夜晚（N）" aria-label="切換白天或夜晚">🌙</button>
+    <button id="btn-event" title="召喚隨機事件" aria-label="召喚隨機事件">🎲</button>
+    <button id="btn-journal" title="圖鑑（J）" aria-label="圖鑑">📖</button>
+    <button id="btn-map" title="小地圖" aria-label="顯示或隱藏小地圖">🗺️</button>
+    <button id="btn-music" title="音樂（M）" aria-label="音樂開關">🎵</button>
+    <button id="btn-sound" title="音效" aria-label="音效開關">🔊</button>
+    <button id="btn-help" title="玩法說明" aria-label="玩法說明">❓</button>
+  </div>
+</div>
+
+<div id="banner" role="status"></div>
+<div id="toasts" aria-live="polite"></div>
+<div id="prompt" hidden></div>
+
+<div id="touch" hidden>
+  <div class="dpad">
+    <button data-key="up" class="up" aria-label="上">▲</button>
+    <button data-key="left" class="left" aria-label="左">◀</button>
+    <button data-key="right" class="right" aria-label="右">▶</button>
+    <button data-key="down" class="down" aria-label="下">▼</button>
+  </div>
+  <div class="abtns">
+    <button data-key="horn" class="c" aria-label="鳴笛／口哨">📯</button>
+    <button data-key="fish" class="b" aria-label="釣魚">B<small>釣魚</small></button>
+    <button data-key="act" class="a" aria-label="互動">A<small>互動</small></button>
+  </div>
+</div>
+
+<div id="dialog" hidden>
+  <div class="box panel" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+    <div id="dialog-icon"></div>
+    <div id="dialog-title"></div>
+    <div id="dialog-text"></div>
+    <button id="dialog-ok">好的</button>
+  </div>
+</div>
+
+<div id="journal" hidden>
+  <div class="box panel" role="dialog" aria-modal="true" aria-labelledby="journal-title">
+    <header><h2 id="journal-title">📖 小島圖鑑</h2><span id="journal-count">0 / 0</span><button id="journal-close" aria-label="關閉圖鑑">✕</button></header>
+    <div id="journal-body"></div>
+  </div>
+</div>
+
+<div id="start">
+  <div class="start-card panel">
+    <p class="eyebrow">PIXEL ISLE · v1.0</p>
+    <h1>像素小島</h1>
+    <p class="lede">貓咪、狐狸和薩摩耶住在一座有瀑布的小島上。<br>開著小船出海，等等看今天會遇見誰。</p>
+    <ul class="keys">
+      <li><kbd>WASD</kbd> 走路・掌舵</li>
+      <li><kbd>E</kbd> 互動・上下船</li>
+      <li><kbd>F</kbd> 釣魚</li>
+      <li><kbd>N</kbd> 白天／夜晚</li>
+    </ul>
+    <p id="loading">正在生成小島…</p>
+    <button id="start-btn" hidden>▶ 出發冒險</button>
+    <p class="note">有音效與音樂，建議開啟聲音</p>
+  </div>
+</div>
+
+<script src="js/util.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/sprites.js"></script>
+<script src="js/world.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/creatures.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
