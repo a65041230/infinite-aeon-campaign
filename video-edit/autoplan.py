@@ -4,7 +4,12 @@ Usage: python autoplan.py materials/ music.mp3 [-o plan.json] [--seconds 15]
                           [--beats-per-shot 2] [--music-start 0]
 
 Shot starts on bar downbeats get the cutout transition, other accents get
-zoom/flash, the rest are hard cuts. Edit the resulting plan.json by hand
+zoom/flash, the rest are hard cuts.
+
+--style fast alternates hero shots with rapid photo bursts (eighth, then
+sixteenth notes leading into each bar), the photo-dump montage look.
+
+Edit the resulting plan.json by hand
 (in points, captions, transitions) before rendering.
 """
 import argparse
@@ -35,6 +40,7 @@ def main():
     ap.add_argument("--seconds", type=float, default=15.0)
     ap.add_argument("--beats-per-shot", type=int, default=2)
     ap.add_argument("--music-start", type=float, default=0.0)
+    ap.add_argument("--style", choices=["normal", "fast"], default="normal")
     a = ap.parse_args()
 
     out_dir = os.path.dirname(os.path.abspath(a.out))
@@ -53,7 +59,36 @@ def main():
     beats = bt["beats"]
 
     shots, used, b, i = [], {}, 0, 0
-    while b < len(beats) and beats[b] < a.seconds:
+    images = [f for f in files if os.path.splitext(f)[1].lower() in IMAGE_EXT]
+    heroes = [f for f in files if f not in images] or images
+    if a.style == "fast" and images:
+        # Per 2 bars: hero (cutout on the bar) | 8th-note burst | hero (zoom) | 16th-note burst.
+        pattern = [("hero", 2, "cutout"), ("burst", 2, 0.5), ("hero", 2, "zoom"), ("burst", 2, 0.25)]
+        pi = hi = ii = 0
+        while b < len(beats) and beats[b] < a.seconds:
+            kind, n, opt = pattern[pi % len(pattern)]
+            if kind == "hero":
+                f = heroes[hi % len(heroes)]
+                hi += 1
+                shot = {"src": os.path.relpath(f, out_dir), "beats": n,
+                        "transition": "cut" if not shots else opt}
+                d = duration(f)
+                if d:
+                    start = used.get(f, 0.0)
+                    if start + n * 60 / bt["tempo"] > d:
+                        start = 0.0
+                    shot["in"] = round(start, 2)
+                    used[f] = start + n * 60 / bt["tempo"]
+            else:
+                count = int(n / opt)
+                pick = [images[(ii + j) % len(images)] for j in range(count)]
+                ii += count
+                shot = {"burst": [os.path.relpath(f, out_dir) for f in pick],
+                        "beats": n, "per_image": opt, "first": "flash", "transition": "zoom"}
+            shots.append(shot)
+            b += n
+            pi += 1
+    while a.style == "normal" and b < len(beats) and beats[b] < a.seconds:
         f = files[i % len(files)]
         n = a.beats_per_shot
         t = round(beats[b], 3)

@@ -19,6 +19,7 @@ P=projects/my-reel            # 放素材的工作資料夾(已在 .gitignore)
 # 1. 素材放 $P/materials/,音樂放 $P/music.mp3
 # 2. 產生草稿剪輯表(自動抓拍點、分配鏡頭與轉場)
 ~/vedit-venv/bin/python autoplan.py $P/materials $P/music.mp3 -o $P/plan.json --seconds 15
+#    照片多、要高速切換感:加 --style fast(主鏡頭與照片連拍交錯)
 # 3. 手動或請 Claude 調整 plan.json(入點、轉場、字幕)
 # 4. 先出低解析預覽,再出成品
 ~/vedit-venv/bin/python render.py $P/plan.json --preview
@@ -38,7 +39,11 @@ P=projects/my-reel            # 放素材的工作資料夾(已在 .gitignore)
     { "src": "materials/b.mp4", "in": 0.0, "beats": 2, "transition": "cutout" },
     { "src": "materials/c.jpg",            "beats": 4, "transition": "zoom", "pulse": true },
     { "src": "materials/d.mp4", "in": 3.0, "beats": 1, "transition": "flash", "speed": 1.5,
-      "anchor": [0.5, 0.3] }
+      "anchor": [0.5, 0.3] },
+    // 照片連拍:每張 0.5 拍(八分音符)或 0.25 拍(十六分音符),第一張閃白,其餘 punch zoom
+    { "burst": ["materials/p1.jpg", "materials/p2.jpg", "materials/p3.jpg"],
+      "beats": 2, "per_image": 0.25, "first": "flash", "transition": "zoom" },
+    { "burst": "materials/photos/", "beats": 4, "per_image": 0.5 }   // 也可以給資料夾
   ],
   "captions": [
     { "text": "第一句", "shot": 0 },
@@ -49,12 +54,18 @@ P=projects/my-reel            # 放素材的工作資料夾(已在 .gitignore)
 
 | 欄位 | 說明 |
 |---|---|
-| `beats` | 這個鏡頭佔幾拍。快節奏 1 拍、一般 2 拍、重點鏡頭 4 拍 |
+| `beats` | 這個鏡頭佔幾拍。可用小數:0.5 = 八分音符、0.25 = 十六分音符 |
+| `burst` / `per_image` | 照片連拍:一串圖片(或資料夾),每張停 `per_image` 拍 |
 | `transition` | 進入這個鏡頭的方式:`cut` / `zoom` / `flash` / `whip` / `cutout` |
 | `in` / `speed` | 素材入點(秒)與播放速度 |
 | `pulse` | 鏡頭內每一拍做一次輕微縮放彈跳 |
 | `push` | 整個鏡頭緩慢推近(照片預設開) |
 | `anchor` | 直式裁切的焦點 `[x, y]`,0–1 |
+
+## 高速切換(照片連拍)
+
+`--style fast` 每兩小節排成:主鏡頭(小節頭用摳圖轉場)→ 八分音符照片連拍 → 主鏡頭(punch zoom)→ 十六分音符照片連拍。
+越接近下一小節切得越快,製造衝刺感,然後在重拍落回主鏡頭。摳圖貼紙會在連拍進行中提前半拍彈出。
 
 ## 摳圖轉場原理
 

@@ -25,6 +25,10 @@ Tools live in `video-edit/` (see its README for the plan format). Python env: `~
 
 - Every cut on a beat. Shot length: 1 beat in fast/drop sections, 2 beats normal, 4 beats for
   hero shots. Accelerate toward the drop (4 → 2 → 1 → 1), then land on a hero shot.
+- Photo-dump speed: put photo runs in `burst` shots at 0.5 beat per image, tightening to 0.25
+  in the bar before a drop or hero shot (`autoplan.py --style fast` drafts this). Order burst
+  photos by colour/subject so the flicker reads as one motion, not noise. Never burst faster
+  than 0.25 beat (≈ 3–4 frames at 120 BPM / 30 fps).
 - `cutout` only where the incoming shot's first frame has one clear subject on a separable
   background, and only on downbeats/big accents (≈ every 2 bars). Overuse kills the effect.
 - Between cutouts: alternate `cut`, `zoom`, occasional `flash` on strong accents, `whip` when
