@@ -1,0 +1,36 @@
+# 把 pixel-island/ 小遊戲部署到 GitHub Pages
+# 網址：https://a65041230.github.io/infinite-aeon-campaign/
+# 第一次使用前：Settings → Pages → Build and deployment → Source 選「GitHub Actions」
+name: Deploy Pixel Isle to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "pixel-island/**"
+      - ".github/workflows/pixel-island-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pixel-island-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: pixel-island
+      - id: deployment
+        uses: actions/deploy-pages@v4

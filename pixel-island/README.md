@@ -4,6 +4,13 @@
 
 這個資料夾是**獨立的小遊戲**，純 HTML + JavaScript，不依賴主專案的 Next.js，也不需要安裝或建置。
 
+## 線上遊玩與分享
+
+部署後的網址：**https://a65041230.github.io/infinite-aeon-campaign/**
+
+由 `.github/workflows/pixel-island-pages.yml` 自動部署：每次 `main` 分支裡的 `pixel-island/` 有變動，就會重新發佈到 GitHub Pages。
+第一次需要到 GitHub 的 **Settings → Pages → Build and deployment → Source** 選「**GitHub Actions**」。
+
 ## 怎麼玩
 
 直接用瀏覽器打開 `index.html` 即可（雙擊檔案就能玩）。
