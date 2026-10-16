@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# video-edit working files
+video-edit/projects/
+**/.cutout_cache/
+*.mp4
+*.mov
+__pycache__/
