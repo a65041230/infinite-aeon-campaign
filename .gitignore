@@ -46,3 +46,7 @@ video-edit/projects/
 *.mp4
 *.mov
 __pycache__/
+
+# delegated DeepSeek tasks (scripts/ds-task.mjs)
+.worktrees/
+.ds-task.md
