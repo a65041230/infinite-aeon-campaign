@@ -20,7 +20,9 @@ const SYSTEM =
   "這是給台灣執業醫師使用的臨床推理輔助工具的後端，使用者是醫師本人。" +
   "只處理臨床推理、反方審查與醫病溝通的請求，並嚴格依照使用者訊息指定的 JSON 格式回覆。";
 
-type Provider = { name: "anthropic" | "deepseek"; key: string; model: string };
+// "deepseek" covers any OpenAI-style Chat Completions endpoint: DeepSeek's own
+// API, or OpenRouter when the key is an OpenRouter key (sk-or-…).
+type Provider = { name: "anthropic" | "deepseek"; key: string; model: string; base: string; openRouter: boolean };
 
 // Tolerate common paste slips in the dashboard: surrounding spaces or quotes,
 // or a "Bearer " prefix copied along with the key.
@@ -31,11 +33,24 @@ function cleanKey(value: string | undefined): string {
 function pickProvider(): Provider | null {
   const forced = (process.env.DDX_PROVIDER ?? "").trim().toLowerCase();
   const anthropicKey = cleanKey(process.env.ANTHROPIC_API_KEY);
-  const deepseekKey = cleanKey(process.env.DEEPSEEK_API_KEY);
+  const deepseekKey = cleanKey(process.env.DEEPSEEK_API_KEY) || cleanKey(process.env.OPENROUTER_API_KEY);
   const model = (process.env.DDX_MODEL ?? "").trim();
   const useDeepSeek = forced === "deepseek" || (forced !== "anthropic" && !anthropicKey && !!deepseekKey);
-  if (useDeepSeek) return deepseekKey ? { name: "deepseek", key: deepseekKey, model: model || "deepseek-flash" } : null;
-  return anthropicKey ? { name: "anthropic", key: anthropicKey, model: model || "claude-opus-5-5" } : null;
+  if (useDeepSeek) {
+    if (!deepseekKey) return null;
+    const openRouter = deepseekKey.startsWith("sk-or-");
+    const base = process.env.DEEPSEEK_BASE_URL || (openRouter ? "https://openrouter.ai/api/v1" : "https://api.deepseek.com");
+    return {
+      name: "deepseek",
+      key: deepseekKey,
+      model: model || (openRouter ? "deepseek/deepseek-v4.1-flash" : "deepseek-flash"),
+      base: base.replace(/\/+$/, ""),
+      openRouter,
+    };
+  }
+  return anthropicKey
+    ? { name: "anthropic", key: anthropicKey, model: model || "claude-opus-5-5", base: "", openRouter: false }
+    : null;
 }
 
 // Best-effort limiter per server instance. The real cost guard is the spend
@@ -113,28 +128,36 @@ async function streamClaude(p: Provider, task: Task, prompt: string, signal: Abo
   }
 }
 
-// DeepSeek's Chat Completions API (OpenAI-style server-sent events).
+// DeepSeek's Chat Completions API (OpenAI-style server-sent events), called
+// directly or through OpenRouter.
 type DeepSeekChunk = {
   model?: string;
+  error?: { message?: string; code?: number | string };
   choices?: { delta?: { content?: string | null }; finish_reason?: string | null }[];
 };
 async function streamDeepSeek(p: Provider, prompt: string, signal: AbortSignal, send: Send) {
-  const base = (process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com").replace(/\/+$/, "");
+  const headers: Record<string, string> = { "content-type": "application/json", authorization: `Bearer ${p.key}` };
+  const body: Record<string, unknown> = {
+    model: p.model,
+    stream: true,
+    max_tokens: 8192,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: SYSTEM },
+      { role: "user", content: prompt },
+    ],
+  };
+  if (p.openRouter) {
+    headers["x-title"] = "Doubt-Driven DDx";
+    // Only route to hosts that neither store nor train on the case text.
+    body.provider = { data_collection: "deny" };
+  }
   let res: Response;
   try {
-    res = await fetch(`${base}/chat/completions`, {
+    res = await fetch(`${p.base}/chat/completions`, {
       method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${p.key}` },
-      body: JSON.stringify({
-        model: p.model,
-        stream: true,
-        max_tokens: 8192,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: SYSTEM },
-          { role: "user", content: prompt },
-        ],
-      }),
+      headers,
+      body: JSON.stringify(body),
       signal,
     });
   } catch {
@@ -146,7 +169,7 @@ async function streamDeepSeek(p: Provider, prompt: string, signal: AbortSignal, 
     // DeepSeek's error body names the cause (bad key, unknown model, no
     // balance). Log it for the site owner; the visitor only sees the code.
     const detail = await res.text().catch(() => "");
-    console.error(`[ddx] DeepSeek HTTP ${s}: ${detail.slice(0, 300)}`);
+    console.error(`[ddx] ${p.openRouter ? "OpenRouter" : "DeepSeek"} HTTP ${s}: ${detail.slice(0, 300)}`);
     const code =
       s === 401 || s === 403 ? "not_configured" :
       s === 402 ? "no_credit" :
@@ -177,6 +200,12 @@ async function streamDeepSeek(p: Provider, prompt: string, signal: AbortSignal, 
           parsed = JSON.parse(data) as DeepSeekChunk;
         } catch {
           continue;
+        }
+        if (parsed.error) {
+          // OpenRouter reports failures after the stream has started this way.
+          console.error(`[ddx] stream error: ${JSON.stringify(parsed.error).slice(0, 300)}`);
+          send({ t: "error", error: "upstream_error" });
+          return;
         }
         if (parsed.model) model = parsed.model;
         const choice = parsed.choices?.[0];
