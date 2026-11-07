@@ -646,6 +646,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       case "invalid_json": return "回覆的格式不完整，請再試一次。";
       case "truncated": return "回覆太長被截斷了，請精簡資料後再試。";
       case "network": return "連線中斷了，請確認網路後再試一次。";
+      case "too_long": return "這次分析超過網站 5 分鐘的上限，被中斷了。請再按一次；如果常發生，請告訴分享連結給你的人。";
       case "invalid_request": return "送出的資料格式有問題，請重新整理頁面後再試。";
       default: return "服務暫時出了問題，請再試一次。";
     }
@@ -985,6 +986,8 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       newInfo ? `【本輪新增資料】\n${newInfo}` : "",
       "",
       safetyNetBlock(s, newInfo, false),
+      "",
+      "（全程使用台灣繁體中文，不要出現簡體字。）",
     ].filter((x) => x !== "").join("\n");
   }
   function buildCriticPrompt(s, round) {
@@ -1034,6 +1037,8 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       "",
       "【待審查的分析】",
       JSON.stringify(compact, null, 2),
+      "",
+      "（全程使用台灣繁體中文，不要出現簡體字。）",
     ].filter((x) => x !== "").join("\n");
   }
   function latestCaseSummary() {
@@ -1077,6 +1082,8 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       `醫師目前的狀態：${c.doctor}`,
       `情境描述：${c.situation}`,
       c.include && latestCaseSummary() ? `【相關病例摘要】\n${latestCaseSummary()}` : "",
+      "",
+      "（全程使用台灣繁體中文，不要出現簡體字。）",
     ].filter((x) => x !== "").join("\n");
   }
 

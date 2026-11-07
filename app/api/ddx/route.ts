@@ -216,7 +216,8 @@ async function streamDeepSeek(p: Provider, task: Task, prompt: string, signal: A
   if (p.openRouter) {
     headers["x-title"] = "Doubt-Driven DDx";
     // Only route to hosts that neither store nor train on the case text.
-    body.provider = { data_collection: "deny" };
+    // Fastest hosts first: long answers otherwise run into the 300 s function limit.
+    body.provider = { data_collection: "deny", sort: "throughput" };
     // OpenRouter's common switch for thinking; models without it ignore it.
     body.reasoning = { effort: TASK_EFFORT[task] };
   }
@@ -319,6 +320,17 @@ export async function POST(req: Request): Promise<Response> {
   }
   if (prompt.length > MAX_PROMPT_CHARS) return json(413, { error: "prompt_too_large" });
 
+  // The platform stops this function at 300 s. Stop the AI call a little
+  // earlier so the visitor gets a clear "took too long" instead of a dropped
+  // connection.
+  const deadline = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    deadline.abort();
+  }, 285_000);
+  req.signal.addEventListener("abort", () => deadline.abort());
+
   const encoder = new TextEncoder();
   // Newline-delimited JSON events: {t:"d"} text, {t:"reset"} discard text so far
   // (a fallback model took over), {t:"ping"} keep-alive, then {t:"done"} or {t:"error"}.
@@ -328,8 +340,9 @@ export async function POST(req: Request): Promise<Response> {
       open = false;
     },
     async start(controller) {
-      const send: Send = (event) => {
+      const send: Send = (raw) => {
         if (!open) return;
+        const event = timedOut && raw.t === "error" ? { t: "error", error: "too_long" } : raw;
         try {
           controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
         } catch {
@@ -338,10 +351,11 @@ export async function POST(req: Request): Promise<Response> {
       };
       const ping = setInterval(() => send({ t: "ping" }), 15_000);
       try {
-        if (provider.name === "deepseek") await streamDeepSeek(provider, task as Task, prompt, req.signal, send);
-        else await streamClaude(provider, task as Task, prompt, req.signal, send);
+        if (provider.name === "deepseek") await streamDeepSeek(provider, task as Task, prompt, deadline.signal, send);
+        else await streamClaude(provider, task as Task, prompt, deadline.signal, send);
       } finally {
         clearInterval(ping);
+        clearTimeout(timer);
         if (open) {
           open = false;
           try {
