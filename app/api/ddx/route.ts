@@ -31,11 +31,11 @@ function cleanKey(value: string | undefined): string {
   return (value ?? "").trim().replace(/^["']|["']$/g, "").replace(/^Bearer\s+/i, "").trim();
 }
 
-function pickProvider(): Provider | null {
+function pickProvider(modelOverride?: string): Provider | null {
   const forced = (process.env.DDX_PROVIDER ?? "").trim().toLowerCase();
   const anthropicKey = cleanKey(process.env.ANTHROPIC_API_KEY);
   const deepseekKey = cleanKey(process.env.DEEPSEEK_API_KEY) || cleanKey(process.env.OPENROUTER_API_KEY);
-  const model = (process.env.DDX_MODEL ?? "").trim();
+  const model = modelOverride || (process.env.DDX_MODEL ?? "").trim();
   const useDeepSeek = forced === "deepseek" || (forced !== "anthropic" && !anthropicKey && !!deepseekKey);
   if (useDeepSeek) {
     if (!deepseekKey) return null;
@@ -200,12 +200,12 @@ type DeepSeekChunk = {
   error?: { message?: string; code?: number | string };
   choices?: { delta?: { content?: string | null }; finish_reason?: string | null }[];
 };
-async function streamDeepSeek(p: Provider, prompt: string, signal: AbortSignal, send: Send) {
+async function streamDeepSeek(p: Provider, task: Task, prompt: string, signal: AbortSignal, send: Send) {
   const headers: Record<string, string> = { "content-type": "application/json", authorization: `Bearer ${p.key}` };
   const body: Record<string, unknown> = {
     model: p.model,
     stream: true,
-    max_tokens: 20_000, // room for long critiques; V4.1 Flash allows far more
+    max_tokens: 32_000, // reasoning tokens count toward this too
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: SYSTEM },
@@ -216,6 +216,8 @@ async function streamDeepSeek(p: Provider, prompt: string, signal: AbortSignal, 
     headers["x-title"] = "Doubt-Driven DDx";
     // Only route to hosts that neither store nor train on the case text.
     body.provider = { data_collection: "deny" };
+    // OpenRouter's common switch for thinking; models without it ignore it.
+    body.reasoning = { effort: TASK_EFFORT[task] };
   }
   let res: Response;
   try {
@@ -287,7 +289,11 @@ async function streamDeepSeek(p: Provider, prompt: string, signal: AbortSignal, 
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const provider = pickProvider();
+  // Side-by-side model tests: a request may name another model, but only one
+  // listed in DDX_LAB_MODELS, so visitors cannot pick an arbitrary model.
+  const wanted = (req.headers.get("x-ddx-model") ?? "").trim();
+  const labModels = (process.env.DDX_LAB_MODELS ?? "").split(",").map((m) => m.trim()).filter(Boolean);
+  const provider = pickProvider(wanted && labModels.includes(wanted) ? wanted : undefined);
   const publicSite = isPublic();
   if (!provider || (!publicSite && !process.env.DDX_ACCESS_KEY)) return json(503, { error: "not_configured" });
   if (!publicSite) {
@@ -331,7 +337,7 @@ export async function POST(req: Request): Promise<Response> {
       };
       const ping = setInterval(() => send({ t: "ping" }), 15_000);
       try {
-        if (provider.name === "deepseek") await streamDeepSeek(provider, prompt, req.signal, send);
+        if (provider.name === "deepseek") await streamDeepSeek(provider, task as Task, prompt, req.signal, send);
         else await streamClaude(provider, task as Task, prompt, req.signal, send);
       } finally {
         clearInterval(ping);
