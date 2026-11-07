@@ -1,0 +1,1586 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Doubt-Driven 鑑別工作台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&display=swap">
+<style>
+/* Layout: a working clinical chart. Intake on the left, the running assessment (progress notes R1, R2, ...) on the right; one column on phones. */
+:root {
+  --bg: #eef2f5;
+  --surface: #ffffff;
+  --surface-2: #f5f7f9;
+  --ink: #15202b;
+  --muted: #566573;
+  --line: #d3dbe2;
+  --accent: #1b5a8a;
+  --accent-ink: #ffffff;
+  --accent-soft: #e2edf6;
+  --flag: #b3261e;
+  --flag-soft: #fbe8e6;
+  --warn: #8f5400;
+  --warn-soft: #fcefd9;
+  --ok: #23704a;
+  --ok-soft: #e1f2e8;
+  --focus: #2f7fc1;
+  --font-display: "Noto Serif TC", "Songti TC", "PMingLiU", serif;
+  --font-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e141a; --surface: #151d25; --surface-2: #1b252f; --ink: #e4eaf0; --muted: #9aa8b5;
+    --line: #2b3844; --accent: #6eaee0; --accent-ink: #08131c; --accent-soft: #15293b;
+    --flag: #ff8b80; --flag-soft: #3a1714; --warn: #f2b453; --warn-soft: #33250c;
+    --ok: #73d19c; --ok-soft: #10301f; --focus: #8cc4f0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e141a; --surface: #151d25; --surface-2: #1b252f; --ink: #e4eaf0; --muted: #9aa8b5;
+  --line: #2b3844; --accent: #6eaee0; --accent-ink: #08131c; --accent-soft: #15293b;
+  --flag: #ff8b80; --flag-soft: #3a1714; --warn: #f2b453; --warn-soft: #33250c;
+  --ok: #73d19c; --ok-soft: #10301f; --focus: #8cc4f0;
+  color-scheme: dark;
+}
+
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.65; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3, h4 { text-wrap: balance; margin: 0; }
+p { margin: 0; }
+ul, ol { margin: 0; padding-left: 1.2em; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* Masthead */
+.masthead { background: var(--surface); border-bottom: 1px solid var(--line); }
+.masthead-inner { padding-block: 22px 18px; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.masthead h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(24px, 3.2vw, 32px); line-height: 1.25; margin-top: 4px; }
+.tagline { color: var(--muted); margin-top: 6px; max-width: 60ch; }
+.safety { background: var(--warn-soft); border-top: 1px solid var(--line); }
+.safety .wrap { padding-block: 9px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 13.5px; }
+.safety strong { font-weight: 700; color: var(--warn); }
+
+/* Tabs */
+.tabs { display: flex; gap: 4px; overflow-x: auto; margin-top: 4px; }
+.tab { font: inherit; font-weight: 500; color: var(--muted); text-decoration: none; padding: 10px 14px; border-bottom: 2px solid transparent; white-space: nowrap; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tab:hover { color: var(--ink); }
+
+main { padding-block: 20px 40px; }
+.workspace { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+@media (min-width: 1000px) { .workspace { grid-template-columns: minmax(320px, 400px) minmax(0, 1fr); } }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; min-width: 0; }
+.panel-title { font-family: var(--font-display); font-weight: 600; font-size: 19px; }
+.panel-sub { color: var(--muted); font-size: 13.5px; margin-top: 2px; }
+.stack { display: flex; flex-direction: column; gap: 14px; }
+.stack-lg { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+
+/* Form */
+.field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.field > label, .field > .label { font-weight: 500; font-size: 14px; }
+.field .opt { color: var(--muted); font-weight: 400; font-size: 12.5px; }
+.hint { color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+input[type="text"], input[type="number"], select, textarea {
+  font: inherit; font-size: 14.5px; color: var(--ink); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 100%; min-width: 0;
+}
+textarea { resize: vertical; min-height: 64px; line-height: 1.55; }
+textarea.tall { min-height: 92px; }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--focus); outline-offset: 0; border-color: transparent; }
+.grid-4 { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); }
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; line-height: 1.5; }
+.check input { margin-top: 3px; width: 16px; height: 16px; flex: none; }
+fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+legend { font-weight: 500; font-size: 14px; padding: 0; margin-bottom: 6px; }
+.choices { display: flex; flex-wrap: wrap; gap: 6px; }
+.choice { position: relative; }
+.choice input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.choice span { display: inline-block; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: 13.5px; background: var(--surface-2); }
+.choice input:checked + span { background: var(--accent-soft); border-color: var(--accent); color: var(--ink); font-weight: 500; }
+.choice input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* Buttons */
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.btn { font: inherit; font-size: 14px; font-weight: 500; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
+.btn-quiet { border-color: transparent; background: transparent; color: var(--muted); padding-inline: 8px; }
+.btn-quiet:hover:not(:disabled) { color: var(--ink); border-color: var(--line); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-danger { color: var(--flag); }
+
+/* Notices */
+.notice { border-radius: 8px; padding: 10px 12px; font-size: 14px; line-height: 1.55; border: 1px solid var(--line); background: var(--surface-2); }
+.notice-flag { background: var(--flag-soft); border-color: transparent; }
+.notice-warn { background: var(--warn-soft); border-color: transparent; }
+.notice-info { background: var(--accent-soft); border-color: transparent; }
+.notice strong { font-weight: 700; }
+.notice ul { margin-top: 4px; }
+
+/* Chips */
+.chip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; line-height: 1; padding: 5px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); background: var(--surface); white-space: nowrap; }
+.chip-flag { color: var(--flag); border-color: var(--flag); background: var(--flag-soft); }
+.chip-warn { color: var(--warn); border-color: transparent; background: var(--warn-soft); }
+.chip-ok { color: var(--ok); border-color: transparent; background: var(--ok-soft); }
+.chip-accent { color: var(--accent); border-color: transparent; background: var(--accent-soft); }
+.chip-mono { font-family: var(--font-mono); letter-spacing: 0.02em; }
+
+/* Results */
+.round-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; justify-content: space-between; }
+.round-tag { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; color: var(--accent); }
+.round-title { font-family: var(--font-display); font-weight: 600; font-size: 21px; }
+.meta { color: var(--muted); font-size: 12.5px; }
+.summary { font-size: 16px; line-height: 1.7; margin-top: 8px; }
+.section-k { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.section-h { font-weight: 700; font-size: 16px; margin-bottom: 8px; }
+.flags { display: flex; flex-direction: column; gap: 8px; }
+.flag-item { background: var(--flag-soft); border-radius: 8px; padding: 10px 12px; }
+.flag-item b { color: var(--flag); }
+
+.so { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.so > div { min-width: 0; background: var(--surface-2); border-radius: 8px; padding: 10px 12px; }
+.so-k { font-family: var(--font-mono); font-weight: 600; color: var(--accent); margin-right: 6px; }
+
+.dx-list { display: flex; flex-direction: column; gap: 10px; }
+.dx { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; background: var(--surface); min-width: 0; }
+.dx[data-closed="true"] { background: var(--surface-2); }
+.dx[data-closed="true"] .dx-name { color: var(--muted); }
+.dx-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; }
+.dx-name { font-weight: 700; font-size: 16px; min-width: 0; }
+.dx-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.dx-ev { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top: 10px; }
+.dx-ev > div { min-width: 0; }
+.dx-ev .k { font-size: 12.5px; font-weight: 700; color: var(--muted); margin-bottom: 2px; }
+.dx-meta { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 10px 0 0; font-size: 14px; }
+.dx-meta dt { color: var(--muted); font-size: 12.5px; font-weight: 700; padding-top: 2px; }
+.dx-meta dd { margin: 0; min-width: 0; }
+.dx-foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.dx-foot label { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--muted); }
+.dx-foot select { width: auto; padding: 5px 8px; font-size: 13.5px; }
+.dx-warn { color: var(--flag); font-size: 13px; }
+
+.steps { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 8px; counter-reset: s; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; align-items: start; }
+.steps li::before { content: counter(s); font-family: var(--font-mono); font-size: 12px; font-weight: 600; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; margin-top: 1px; }
+.step-body { min-width: 0; }
+.step-why { color: var(--muted); font-size: 13.5px; }
+.gaps { display: flex; flex-direction: column; gap: 4px; }
+.verify li + li { margin-top: 6px; }
+
+.critic { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+.critic-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; }
+.critic h3 { font-family: var(--font-display); font-weight: 600; font-size: 18px; }
+.keyq { margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: var(--accent-soft); }
+.keyq b { color: var(--accent); }
+
+.history details { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.history details + details { margin-top: 8px; }
+.history summary { cursor: pointer; padding: 10px 12px; font-weight: 500; }
+.history .hist-body { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+
+.progress { border: 1px solid var(--accent); border-radius: var(--radius); padding: 14px; background: var(--accent-soft); }
+.progress-steps { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; font-weight: 500; }
+.progress-steps li { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.progress-steps li[data-state="active"] { color: var(--ink); }
+.progress-steps li[data-state="done"] { color: var(--ok); }
+.dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid currentColor; }
+li[data-state="active"] .dot { border-color: var(--accent); border-top-color: transparent; animation: spin 0.9s linear infinite; }
+li[data-state="done"] .dot { background: currentColor; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.progress-note { margin-top: 8px; font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: space-between; }
+.copybox { width: 100%; min-height: 160px; font-family: var(--font-mono); font-size: 12.5px; }
+.empty { text-align: left; color: var(--muted); }
+.empty h3 { color: var(--ink); font-family: var(--font-display); font-weight: 600; font-size: 19px; margin-bottom: 6px; }
+
+/* Communication view */
+.rel-figure { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.rel-figure svg { width: 120px; height: 120px; flex: none; }
+.rel-figure .zone-out { fill: var(--surface-2); stroke: var(--line); }
+.rel-figure .zone-ring { fill: none; stroke: var(--warn); stroke-width: 10; opacity: 0.35; }
+.rel-figure .zone-in { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.5; }
+.rel-figure .pt { fill: var(--accent); }
+.rel-figure .arrow { stroke: var(--accent); stroke-width: 2.5; fill: none; }
+.rel-figure .arrowhead { fill: var(--accent); }
+.rel-figure text { fill: var(--muted); font-size: 10px; font-family: var(--font-body); }
+.phrases { display: flex; flex-direction: column; gap: 10px; }
+.phrase { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--surface); }
+.phrase .sit { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.phrase .say { font-size: 15.5px; margin-top: 4px; }
+.phrase .say::before { content: "「"; color: var(--muted); }
+.phrase .say::after { content: "」"; color: var(--muted); }
+.phrase-foot { display: flex; justify-content: flex-end; margin-top: 6px; }
+
+/* Guide */
+.guide { max-width: 760px; }
+.guide h2 { font-family: var(--font-display); font-weight: 600; font-size: 22px; }
+.guide h3 { font-weight: 700; font-size: 16px; margin-top: 6px; }
+.guide p, .guide li { max-width: 65ch; }
+.guide ol li + li, .guide ul li + li { margin-top: 4px; }
+
+footer.page-foot { border-top: 1px solid var(--line); }
+footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-size: 12.5px; }
+
+.toast { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 14px; z-index: 20; max-width: calc(100% - 32px); }
+
+@media (prefers-reduced-motion: reduce) { li[data-state="active"] .dot { animation: none; } }
+</style>
+</head>
+<body>
+<header class="masthead">
+  <div class="wrap masthead-inner">
+    <div>
+      <p class="eyebrow">Clinical reasoning · 醫師專用</p>
+      <h1>Doubt-Driven 鑑別工作台</h1>
+      <p class="tagline">先找紅旗，再列最可能與不可錯過的診斷，最後由反方審查挑錯。每一輪都留下紀錄，有新資料就接著推進。</p>
+    </div>
+  </div>
+  <div class="safety">
+    <div class="wrap">
+      <strong>注意</strong>
+      <span>請勿輸入姓名、身分證字號、病歷號、電話等可識別資料。</span>
+      <span>分析結果僅供醫師參考，診斷與處置由醫師判斷負責。</span>
+    </div>
+  </div>
+  <nav class="wrap tabs" role="tablist" aria-label="功能">
+    <a class="tab" id="tab-reason" role="tab" href="#reason" aria-controls="view-reason">臨床推理</a>
+    <a class="tab" id="tab-comm" role="tab" href="#comm" aria-controls="view-comm">溝通與風險</a>
+    <a class="tab" id="tab-guide" role="tab" href="#guide" aria-controls="view-guide">使用說明</a>
+  </nav>
+</header>
+
+<main class="wrap">
+  <!-- Clinical reasoning -->
+  <section id="view-reason" role="tabpanel" aria-labelledby="tab-reason">
+    <div class="workspace">
+      <form id="caseForm" class="panel stack" novalidate>
+        <div>
+          <h2 class="panel-title">病例</h2>
+          <p class="panel-sub">去識別化後填寫。沒有的欄位可以空著。</p>
+        </div>
+        <div class="grid-4">
+          <div class="field"><label for="f-age">年齡</label><input id="f-age" type="number" min="0" max="120" inputmode="numeric" placeholder="歲"></div>
+          <div class="field"><label for="f-sex">性別</label>
+            <select id="f-sex"><option value="">未提供</option><option>男</option><option>女</option><option>其他</option></select></div>
+          <div class="field"><label for="f-setting">就診場景</label>
+            <select id="f-setting"><option value="">未提供</option><option>門診</option><option>急診</option><option>住院</option><option>居家</option><option>其他</option></select></div>
+          <div class="field"><label for="f-rel">病史可靠度</label>
+            <select id="f-rel"><option>未評估</option><option>可靠</option><option>部分存疑</option><option>明顯矛盾</option></select></div>
+        </div>
+        <p class="hint">病史可靠度只用來提醒哪些資料要客觀查證，不會降低任何器質性診斷的可能性。</p>
+        <div class="field"><label for="f-cc">主訴</label><textarea id="f-cc" placeholder="例如：反覆胸悶兩週，活動時加劇"></textarea></div>
+        <div class="field"><label for="f-hpi">現病史 <span class="opt">選填</span></label><textarea id="f-hpi" class="tall" placeholder="發作時間、性質、誘發與緩解因素、伴隨症狀"></textarea></div>
+        <div class="field"><label for="f-pmh">過去病史、用藥、過敏 <span class="opt">選填</span></label><textarea id="f-pmh" placeholder="包含保健品與中藥"></textarea></div>
+        <div class="field"><label for="f-pe">理學檢查、生命徵象 <span class="opt">選填</span></label><textarea id="f-pe"></textarea></div>
+        <div class="field"><label for="f-labs">檢驗、影像 <span class="opt">選填</span></label><textarea id="f-labs" placeholder="附上單位與參考值會更準確"></textarea></div>
+        <div class="field"><label for="f-thoughts">你目前的想法 <span class="opt">選填</span></label><textarea id="f-thoughts" placeholder="你懷疑什麼？想確認或排除什麼？"></textarea></div>
+        <label class="check" for="f-confirm"><input id="f-confirm" type="checkbox"><span>我確認已移除姓名、身分證字號、病歷號、電話、地址等可識別資料。</span></label>
+        <div id="formAlert" hidden></div>
+        <div id="resetConfirm" class="notice notice-warn" hidden>
+          <p>重新分析會從第 1 輪開始，目前的評估紀錄會被清除（存檔不受影響）。</p>
+          <div class="actions" style="margin-top:8px">
+            <button type="button" class="btn btn-primary" id="btn-reset-yes">清除紀錄並重新分析</button>
+            <button type="button" class="btn" id="btn-reset-no">取消</button>
+          </div>
+        </div>
+        <div id="availPanel" hidden></div>
+        <div class="actions">
+          <button type="submit" class="btn btn-primary" id="btn-analyze">開始分析</button>
+          <button type="button" class="btn btn-quiet" id="btn-clear">清除，輸入新病例</button>
+        </div>
+        <p class="hint" id="availHint">分析大約需要一到三分鐘，完成後會自動進行反方審查。</p>
+      </form>
+
+      <div class="stack-lg" id="reasonOut" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <!-- Communication -->
+  <section id="view-comm" role="tabpanel" aria-labelledby="tab-comm" hidden>
+    <div class="workspace">
+      <form id="commForm" class="panel stack" novalidate>
+        <div>
+          <h2 class="panel-title">溝通與風險</h2>
+          <p class="panel-sub">遇到困難的醫病對話時，描述狀況，取得可以直接說出口的建議。</p>
+        </div>
+        <fieldset>
+          <legend>醫病關係</legend>
+          <div class="choices">
+            <label class="choice"><input type="radio" name="rel" id="rel-in" value="圓內"><span>圓內・同一隊</span></label>
+            <label class="choice"><input type="radio" name="rel" id="rel-edge" value="圓邊"><span>圓邊・有摩擦</span></label>
+            <label class="choice"><input type="radio" name="rel" id="rel-out" value="圓外"><span>圓外・關係斷裂</span></label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>趨勢</legend>
+          <div class="choices">
+            <label class="choice"><input type="radio" name="trend" id="trend-in" value="向心"><span>向心・往合作靠近</span></label>
+            <label class="choice"><input type="radio" name="trend" id="trend-flat" value="持平"><span>持平</span></label>
+            <label class="choice"><input type="radio" name="trend" id="trend-out" value="離心"><span>離心・往衝突遠離</span></label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>你注意到的狀況 <span class="opt">可複選</span></legend>
+          <div class="choices" id="concernBox"></div>
+        </fieldset>
+        <div class="field"><label for="c-doctor">你現在的狀態</label>
+          <select id="c-doctor"><option>平穩</option><option>疲累</option><option>覺得被逼迫</option><option>很挫折</option><option>有點害怕</option></select></div>
+        <div class="field"><label for="c-situation">發生了什麼</label><textarea id="c-situation" class="tall" placeholder="病人說了什麼、要求什麼、你擔心什麼"></textarea></div>
+        <label class="check" for="c-include"><input id="c-include" type="checkbox"><span>附上「臨床推理」分頁最新一輪的摘要</span></label>
+        <div id="commAlert" hidden></div>
+        <div id="availPanelComm" hidden></div>
+        <div class="actions"><button type="submit" class="btn btn-primary" id="btn-comm">產生溝通建議</button></div>
+      </form>
+      <div class="stack-lg" id="commOut" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <!-- Guide -->
+  <section id="view-guide" role="tabpanel" aria-labelledby="tab-guide" hidden>
+    <div class="panel guide stack">
+      <h2>使用說明</h2>
+      <h3>這是什麼</h3>
+      <p>給醫師用的鑑別診斷輔助工具，依照 Doubt-Driven 的思路設計：先找需要立即處理的紅旗，再同時列出最可能與不可錯過的診斷，檢查跨科、罕見疾病和檢驗互相矛盾的情況，最後由另一輪「反方審查」專門挑出錨定、遺漏和過度推論。</p>
+      <h3>怎麼用</h3>
+      <ol>
+        <li>在「臨床推理」填入去識別化的病例，按「開始分析」。不需要 Claude 帳號。</li>
+        <li>分析大約需要一到三分鐘，完成後會自動進行反方審查。反方審查漏掉的診斷會自動加入鑑別清單。</li>
+        <li>你可以直接修改每個診斷的狀態（例如改成「已排除」），下一輪會以你的判斷為準。</li>
+        <li>有新的病史、檢查或檢驗結果時，在結果下方的「下一輪」輸入，按「更新分析」。連續兩輪沒有進展時，頁面會提醒你考慮會診、轉診或安排追蹤。</li>
+        <li>「複製摘要」可以貼到病歷草稿；「存檔」把整份紀錄存成檔案，下次用「開啟存檔」接著分析。</li>
+      </ol>
+      <h3>溝通與風險</h3>
+      <p>遇到索取管制藥品、要求開立證明、情緒激動或有醫療糾紛風險的病人時使用。依照圓內、圓邊、圓外的關係模型，提供可以直接說出口的話、要守住的界線、病歷要記錄的事項，以及什麼時候要找人支援。</p>
+      <h3>不能分析怎麼辦</h3>
+      <ul>
+        <li>出現「少了通行碼」：請向分享者索取完整連結（網址最後有 ?k= 開頭的一串字）。用完整連結打開一次後，這台裝置會記住通行碼。</li>
+        <li>出現「使用量暫時達到上限」：請稍等一段時間再試。</li>
+        <li>其他錯誤：重新整理頁面後再試一次，持續發生請告訴分享者。</li>
+      </ul>
+      <h3>隱私</h3>
+      <ul>
+        <li>不要輸入姓名、身分證字號、病歷號、電話、地址或精確生日。頁面偵測到身分證字號、電話或電子郵件格式時會擋下送出。</li>
+        <li>病例會經由這個網站送到 Anthropic 的 Claude 處理。網站不記錄、不保存病例內容；關閉頁面後紀錄就消失，除非你自己存檔。</li>
+        <li>病歷屬於個資法的特種個資，請同時遵守你服務機構的規定。</li>
+      </ul>
+      <h3>限制</h3>
+      <ul>
+        <li>這個工具不會上網查資料。「需要查證」清單附有 PubMed 搜尋連結，請自己點開確認。</li>
+        <li>藥物劑量與交互作用請查院內藥物資料庫或仿單，不要只依賴這裡的內容。</li>
+        <li>AI 可能出錯或遺漏，結果只能當作第二意見，最後的診斷與處置由你判斷。</li>
+        <li>不需要 Claude 帳號，費用由網站提供者負擔。為了控制費用，短時間內大量送出會被暫時限制。</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<footer class="page-foot">
+  <div class="wrap">AI 輔助產生的內容僅供醫師參考，可能有錯誤或遺漏，請自行查證並以臨床判斷為準。依照 Doubt-Driven 臨床推理思路設計。</div>
+</footer>
+
+<input type="file" id="fileInput" accept="application/json,.json" hidden>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---------- helpers ----------
+  function h(tag, props, ...kids) {
+    const el = document.createElement(tag);
+    if (props) {
+      for (const [k, v] of Object.entries(props)) {
+        if (v == null || v === false) continue;
+        if (k === "class") el.className = v;
+        else if (k === "text") el.textContent = v;
+        else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
+        else el.setAttribute(k, v === true ? "" : String(v));
+      }
+    }
+    for (const kid of kids.flat(Infinity)) {
+      if (kid == null || kid === false || kid === "") continue;
+      el.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
+    }
+    return el;
+  }
+  const $ = (id) => document.getElementById(id);
+  const uid = () => Math.random().toString(36).slice(2, 10);
+  const nowText = () => new Date().toLocaleString("zh-TW", { hour12: false });
+  const arr = (v) => (Array.isArray(v) ? v : v == null || v === "" ? [] : [v]);
+  const str = (v) => {
+    if (v == null) return "";
+    const s = typeof v === "string" ? v : typeof v === "object" ? JSON.stringify(v) : String(v);
+    const t = s.trim();
+    return t === "null" || t === "undefined" ? "" : t;
+  };
+  const strs = (v) => arr(v).map(str).filter(Boolean);
+  const pick = (v, list, dflt) => {
+    const s = str(v);
+    if (list.includes(s)) return s;
+    return list.find((x) => s.includes(x)) || dflt;
+  };
+  const truthy = (v) => v === true || v === "true" || v === "是" || v === 1;
+  const keyOf = (name) => String(name || "").replace(/[\s（）()・·,，.。:：-]/g, "").toLowerCase();
+
+  let toastTimer = null;
+  function toast(msg) {
+    const t = $("toast");
+    t.textContent = msg;
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.hidden = true; }, 3200);
+  }
+
+  // ---------- constants ----------
+  const STATUSES = ["待評估", "檢查中", "已排除", "已確立", "擱置"];
+  const LIKELIHOODS = ["高", "中", "低"];
+  const STEP_TYPES = ["問診", "理學檢查", "檢驗", "影像", "處置", "轉介", "衛教"];
+  const VERDICTS = ["同意", "部分同意", "需重新評估"];
+  const BIASES = ["錨定", "過早收斂", "診斷遮蔽", "可得性偏誤", "確認偏誤", "其他"];
+  const TIER_LABEL = { complex: "最強模型", default: "標準模型", quick: "快速模型" };
+  const CONCERNS = ["要求管制藥品", "要求診斷證明或保險文件", "情緒激動", "威脅或醫療糾紛風險", "拒絕檢查或治療", "家屬意見衝突", "病史前後矛盾", "反覆就醫或逛醫院"];
+
+  // ---------- example (pre-written demo, clearly labelled) ----------
+  const EX_CASE = {
+    age: "28", sex: "女", setting: "門診", reliability: "可靠",
+    cc: "健康檢查發現甲狀腺功能異常，想知道需不需要治療。",
+    hpi: "自述沒有心悸、手抖、怕熱或體重減輕，睡眠與食慾正常。最近三個月因為掉髮，每天吃護髮保健品。",
+    pmh: "無慢性病，無規律用藥。保健品標示含生物素（biotin）每日 10 mg。無已知藥物過敏。",
+    pe: "BP 112/70 mmHg，HR 72 規則，體溫 36.6°C。甲狀腺未觸及腫大，無突眼，無手抖。",
+    labs: "TSH 0.02 mIU/L（低），Free T4 3.1 ng/dL（高）。其他健檢項目正常。",
+    thoughts: "數據像甲狀腺亢進，但病人完全沒症狀，不確定要不要開始治療。",
+  };
+  const EX_ANALYSIS = {
+    summary: "檢驗型態像甲狀腺亢進，但臨床表現完全不符，加上正在服用高劑量生物素，最可能是檢驗干擾。建議先停用生物素後重驗，再決定是否治療。",
+    red_flags: [],
+    problems: {
+      subjective: ["健檢發現甲狀腺功能異常", "否認心悸、手抖、怕熱、體重減輕", "因掉髮每日服用生物素 10 mg，已三個月"],
+      objective: ["TSH 0.02 mIU/L（低）", "Free T4 3.1 ng/dL（高）", "HR 72 規則，BP 112/70 mmHg", "甲狀腺未腫大，無突眼、無手抖"],
+    },
+    differentials: [
+      { name: "生物素干擾免疫分析（假性甲狀腺亢進）Biotin interference", likelihood: "高", cant_miss: false, status: "檢查中",
+        supporting: ["每日服用高劑量生物素", "TSH 低、Free T4 高，但臨床甲狀腺功能正常", "以鏈黴親和素–生物素原理設計的免疫分析容易出現這種型態"],
+        against: ["尚未停藥重驗確認"],
+        next_step: "停用生物素至少 72 小時後重驗 TSH、Free T4，並向檢驗科確認所用分析法是否受生物素影響。",
+        would_change: "停藥重驗後仍為 TSH 低、Free T4 高。", status_reason: "需要停藥重驗才能確認。" },
+      { name: "葛瑞夫茲病 Graves' disease", likelihood: "低", cant_miss: false, status: "待評估",
+        supporting: ["檢驗型態符合甲狀腺亢進"],
+        against: ["沒有甲狀腺毒症症狀", "甲狀腺未腫大、無突眼", "心跳正常"],
+        next_step: "若停藥重驗仍異常，再驗 TRAb（生物素同樣可能讓 TRAb 假性升高，需在停藥後抽血）。",
+        would_change: "停藥後重驗仍異常且 TRAb 陽性。", status_reason: "" },
+      { name: "無痛性甲狀腺炎 Painless thyroiditis", likelihood: "低", cant_miss: false, status: "待評估",
+        supporting: ["可能短暫出現 Free T4 升高"],
+        against: ["沒有症狀", "沒有頸部疼痛"],
+        next_step: "重驗仍異常時再評估，必要時安排甲狀腺超音波或攝取掃描。",
+        would_change: "重驗持續異常且攝取率偏低。", status_reason: "" },
+      { name: "外源性甲狀腺素攝取 Exogenous thyroid hormone", likelihood: "低", cant_miss: false, status: "待評估",
+        supporting: ["服用保健品，成分可能沒有完整標示"],
+        against: ["保健品標示未列甲狀腺成分"],
+        next_step: "請病人帶保健品包裝或拍照，確認完整成分。",
+        would_change: "重驗仍異常且 thyroglobulin 偏低。", status_reason: "" },
+      { name: "異嗜性抗體等其他檢驗干擾 Heterophile antibody interference", likelihood: "低", cant_miss: false, status: "待評估",
+        supporting: ["臨床與檢驗不符"],
+        against: ["已有更直接的解釋（生物素）"],
+        next_step: "若停用生物素後仍與臨床不符，請檢驗科換平台重驗或做稀釋試驗。",
+        would_change: "換平台後數值恢復正常。", status_reason: "" },
+    ],
+    cross_specialty: "",
+    lab_paradox: "症狀與理學檢查都顯示甲狀腺功能正常，與檢驗結果矛盾。依原則先懷疑檢驗干擾：高劑量生物素會干擾以鏈黴親和素–生物素原理設計的免疫分析，造成 TSH 假性偏低、Free T4 假性偏高，型態可以完全模仿甲狀腺亢進。",
+    next_steps: [
+      { type: "問診", item: "確認所有保健品與藥物的品名、劑量，以及最後一次服用時間。", why: "評估干擾程度與需要停藥多久。" },
+      { type: "檢驗", item: "停用生物素至少 72 小時後重驗 TSH、Free T4。", why: "確認是否為檢驗干擾。" },
+      { type: "檢驗", item: "向檢驗科確認目前的分析平台是否受生物素影響。", why: "必要時改用不受影響的方法。" },
+      { type: "衛教", item: "說明暫時不需要開始抗甲狀腺藥物，先等重驗結果。", why: "避免對檢驗干擾做不必要的治療。" },
+    ],
+    data_gaps: ["月經週期與懷孕可能性（懷孕早期可能使 TSH 偏低）", "甲狀腺疾病家族史", "其他保健品或減重產品", "過去是否做過甲狀腺功能檢查"],
+    verify: [
+      { claim: "生物素干擾甲狀腺功能檢驗的機轉與建議停藥時間", query: "biotin interference thyroid function tests" },
+      { claim: "生物素造成 TRAb 假陽性、模仿葛瑞夫茲病", query: "biotin interference TSH receptor antibody Graves" },
+    ],
+    taiwan_notes: ["生物素常見於護髮、美甲類保健品。問診時可以直接問「有沒有吃護髮或美甲的保健品」。"],
+    escalation: "",
+  };
+  const EX_CRITIC = {
+    verdict: "部分同意",
+    biggest_risk: "生物素是很好的解釋，但在停藥重驗之前仍只是假設。若直接把一切歸因於生物素而不重驗，可能漏掉同時存在的真正甲狀腺疾病。",
+    missed_differentials: [{ name: "懷孕早期的暫時性甲狀腺毒症 Gestational transient thyrotoxicosis", why: "hCG 可刺激甲狀腺使 TSH 偏低。28 歲女性應先確認是否懷孕。", cant_miss: false }],
+    overcalled: [],
+    bias_flags: [
+      { bias: "過早收斂", note: "停藥重驗前不宜下最後結論。" },
+      { bias: "確認偏誤", note: "不要只找支持生物素的證據，重驗結果才是關鍵。" },
+    ],
+    key_question: "最後一次服用生物素是什麼時候？有沒有懷孕的可能？",
+  };
+  const EX_COMM_INPUT = {
+    rel: "圓邊", trend: "離心", concerns: ["要求管制藥品", "病史前後矛盾"], doctor: "疲累",
+    situation: "病人要求開一個月份的安眠藥，說之前在別家診所都這樣開。問到其他用藥時有點不耐煩，回答前後不太一致。",
+    include: false,
+  };
+  const EX_COMM = {
+    relationship_read: "圓邊、偏向離心。病人目標明確（拿到藥），對追問感到不耐，雙方開始摩擦，但關係還沒有斷裂。",
+    goal: "在不升高衝突的前提下完成安全評估，並把處方決定建立在客觀資料上。",
+    approach: [
+      "先承認他的困擾：失眠很難受，想快點解決是合理的。",
+      "說明你需要先確認用藥安全，再決定怎麼開，讓追問變成為他好的理由。",
+      "開立前查健保雲端藥歷，確認近期管制藥品的領藥紀錄。",
+      "依評估結果給明確的方案：可以開的天數、回診時間、非藥物的睡眠建議。",
+    ],
+    phrases: [
+      { situation: "回應他的要求", say: "睡不好真的很累，我想幫你找到安全又有效的方法。先讓我看一下你最近的用藥紀錄，確定不會跟其他藥重複。" },
+      { situation: "雲端藥歷顯示近期已在別處領藥", say: "紀錄顯示你這個月已經在別家領過同類的藥。重複拿藥對身體有風險，這次我不能再開，但我們可以一起找睡不好的原因。" },
+      { situation: "他堅持要一個月份", say: "安眠藥一次開太多天不安全。我先開比較短的天數，你回診時告訴我效果，我們再一起調整。" },
+    ],
+    boundaries: ["不因為病人堅持或拿其他診所比較，就改變處方決定。", "拒絕時一定給替代方案：較短天數、回診追蹤、睡眠衛教或轉介。"],
+    documentation: ["病人提出的具體要求（藥名、天數）與原話。", "查詢雲端藥歷的時間與結果。", "你的評估、最後的處方與理由，以及病人的回應。"],
+    objective_checks: ["健保雲端藥歷：近三個月管制藥品領藥紀錄", "過去病歷中的睡眠相關診斷與用藥"],
+    doctor_care: "你現在很疲累，這類對話容易被激怒。先用固定的說法，把決定交給客觀資料，不需要在當下說服他。",
+    escalate: "若病人出現威脅、辱罵或拒絕離開，請資深同事或護理長在場，必要時通知保全，並完整記錄經過。",
+  };
+
+  // ---------- state ----------
+  function blankCase() { return { age: "", sex: "", setting: "", reliability: "未評估", cc: "", hpi: "", pmh: "", pe: "", labs: "", thoughts: "" }; }
+  function newState() { return { app: "doubt-driven-ddx", version: 1, isExample: false, case: blankCase(), rounds: [], diffs: [], stall: 0, editsSinceRound: false, confirmed: false }; }
+  function exampleState() {
+    const s = newState();
+    s.isExample = true;
+    s.case = { ...EX_CASE };
+    const analysis = normAnalysis(EX_ANALYSIS);
+    const critic = normCritic(EX_CRITIC);
+    s.diffs = mergeDiffs([], analysis.differentials, "推理");
+    addMissed(s, critic);
+    s.rounds = [{ n: 1, at: "範例", newInfo: "", analysis, critic, criticError: "", tier: "" }];
+    return s;
+  }
+  function exampleComm() { return { ...EX_COMM_INPUT, concerns: [...EX_COMM_INPUT.concerns], result: normComm(EX_COMM), isExample: true, tier: "", error: "" }; }
+
+  let state = null;
+  let comm = null;
+  let busy = false;
+  let busyComm = false;
+  let ctl = null;
+  let ctlComm = null;
+  let progress = null;     // { step, startedAt, chars, timer }
+  let pendingNew = false;  // a fresh case is being analysed: hide the previous results meanwhile
+  let reasonError = "";
+  let showCopy = "";
+
+  // ---------- backend ----------
+  // The shared link carries the access code as ?k=...; it is kept on this device and removed from the address bar.
+  const KEY_STORE = "ddx-access-key";
+  let accessKey = "";
+  try {
+    const url = new URL(location.href);
+    const fromLink = (url.searchParams.get("k") || "").trim();
+    if (fromLink) {
+      accessKey = fromLink;
+      try { localStorage.setItem(KEY_STORE, fromLink); } catch (_) { /* private mode: keep it for this visit only */ }
+      url.searchParams.delete("k");
+      history.replaceState(null, "", url.pathname + url.search + url.hash);
+    } else {
+      try { accessKey = localStorage.getItem(KEY_STORE) || ""; } catch (_) { accessKey = ""; }
+    }
+  } catch (_) { /* keep accessKey empty */ }
+  let sampleStatus = accessKey ? "ready" : "unavailable";   // ready | unavailable | blocked
+  let blockedKind = accessKey ? "" : "nokey";
+  const DIAG = {
+    nokey: { title: "這個連結少了通行碼", steps: [
+      "請向分享連結給你的人索取完整連結（網址最後會有 ?k= 開頭的一串字）。",
+      "用完整連結打開一次後，這台裝置就會記住，之後直接打開網址就能用。"] },
+    badkey: { title: "通行碼不正確或已經更換", steps: [
+      "請向分享連結給你的人索取最新的完整連結。"] },
+    notready: { title: "網站還沒設定完成", steps: [
+      "請告訴分享連結給你的人：網站的 API 金鑰或通行碼還沒設定好。"] },
+  };
+  // Saving works directly in a normal browser tab.
+  let downloadsApi = {
+    save: async ({ filename, data }) => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+      a.download = filename;
+      document.body.append(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      return { status: "saved" };
+    },
+  };
+  const PERMANENT = { bad_key: "badkey", not_configured: "notready" };
+
+  function errorCopy(e) {
+    switch (e && e.code) {
+      case "no_key": return "這個連結少了通行碼，請向分享者索取完整連結。";
+      case "bad_key": return "通行碼不正確或已經更換，請向分享者索取最新的連結。";
+      case "not_configured": return "網站還沒設定完成，請告訴分享者。";
+      case "rate_limited": return "使用量暫時達到上限，請稍等一段時間再試。";
+      case "prompt_too_large": return "資料太長了，請精簡現病史或檢驗內容後再試。";
+      case "refused": return "這段內容沒有被處理。請檢查輸入內容後再試。";
+      case "invalid_json": return "回覆的格式不完整，請再試一次。";
+      case "truncated": return "回覆太長被截斷了，請精簡資料後再試。";
+      case "network": return "連線中斷了，請確認網路後再試一次。";
+      case "invalid_request": return "送出的資料格式有問題，請重新整理頁面後再試。";
+      default: return "服務暫時出了問題，請再試一次。";
+    }
+  }
+
+  function parseJsonLoose(text) {
+    const t = String(text || "").trim();
+    try { return JSON.parse(t); } catch (_) { /* try other shapes */ }
+    const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fence) { try { return JSON.parse(fence[1]); } catch (_) { /* continue */ } }
+    const a = t.indexOf("{");
+    const b = t.lastIndexOf("}");
+    if (a >= 0 && b > a) { try { return JSON.parse(t.slice(a, b + 1)); } catch (_) { /* give up */ } }
+    return undefined;
+  }
+
+  // Calls this site's /api/ddx, which streams newline-delimited JSON events.
+  async function ask(prompt, { task, signal }) {
+    if (!accessKey) throw { code: "no_key" };
+    let res;
+    try {
+      res = await fetch("/api/ddx", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-ddx-key": accessKey },
+        body: JSON.stringify({ task, prompt }),
+        signal,
+      });
+    } catch (e) {
+      throw { code: e && e.name === "AbortError" ? "cancelled" : "network" };
+    }
+    if (!res.ok || !res.body) {
+      let code = "";
+      try { code = (await res.json()).error || ""; } catch (_) { /* not JSON */ }
+      throw { code: code || (res.status === 401 ? "bad_key" : res.status === 429 ? "rate_limited" : res.status === 413 ? "prompt_too_large" : "upstream_error") };
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    let text = "";
+    let done = null;
+    try {
+      for (;;) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        buf += decoder.decode(chunk.value, { stream: true });
+        let nl;
+        while ((nl = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, nl).trim();
+          buf = buf.slice(nl + 1);
+          if (!line) continue;
+          let ev;
+          try { ev = JSON.parse(line); } catch (_) { continue; }
+          if (ev.t === "d") {
+            text += ev.d;
+            if (progress) { progress.chars = text.length; paintProgressNote(); }
+          } else if (ev.t === "reset") {
+            text = "";
+          } else if (ev.t === "done") {
+            done = ev;
+          } else if (ev.t === "error") {
+            throw { code: ev.error || "upstream_error" };
+          }
+        }
+      }
+    } catch (e) {
+      if (e && e.code) throw e;
+      throw { code: signal && signal.aborted ? "cancelled" : "network" };
+    }
+    if (!done) throw { code: signal && signal.aborted ? "cancelled" : "network" };
+    const data = parseJsonLoose(text);
+    if (!data || typeof data !== "object" || Array.isArray(data)) throw { code: done.truncated ? "truncated" : "invalid_json" };
+    return { data, tier: done.model || "" };
+  }
+
+  function handlePermanent(e) {
+    const kind = e && PERMANENT[e.code];
+    if (!kind) return;
+    if (kind === "badkey") {
+      accessKey = "";
+      try { localStorage.removeItem(KEY_STORE); } catch (_) { /* ignore */ }
+    }
+    sampleStatus = "blocked";
+    blockedKind = kind;
+    renderAvailability();
+  }
+
+  // ---------- privacy guard ----------
+  const PII_RULES = [
+    { name: "身分證字號或居留證號", re: /\b[A-Z][1289]\d{8}\b|\b[A-Z][A-D]\d{8}\b/gi, group: 0 },
+    { name: "手機號碼", re: /(^|\D)(09\d{2}[-\s]?\d{3}[-\s]?\d{3})(?!\d)/g, group: 2 },
+    { name: "市話號碼", re: /(^|\D)(\(?0\d{1,2}\)?[-\s]?\d{3,4}[-\s]?\d{4})(?!\d)/g, group: 2 },
+    { name: "電子郵件", re: /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, group: 0 },
+  ];
+  function scanPII(fields) {
+    const hits = [];
+    for (const [label, text] of fields) {
+      if (!text) continue;
+      for (const rule of PII_RULES) {
+        rule.re.lastIndex = 0;
+        let m;
+        while ((m = rule.re.exec(text))) {
+          const hit = m[rule.group] || m[0];
+          hits.push({ label, type: rule.name, masked: hit.slice(0, 2) + "＊＊＊＊" });
+          if (hits.length > 8) return hits;
+        }
+      }
+    }
+    return hits;
+  }
+  function showAlert(box, kind, title, items) {
+    box.hidden = false;
+    box.className = "notice " + (kind === "flag" ? "notice-flag" : "notice-warn");
+    box.replaceChildren(h("strong", { text: title }), items && items.length ? h("ul", null, items.map((t) => h("li", { text: t }))) : null);
+  }
+
+  // ---------- normalizers ----------
+  function normAnalysis(raw) {
+    raw = raw && typeof raw === "object" ? raw : {};
+    const p = raw.problems && typeof raw.problems === "object" ? raw.problems : {};
+    return {
+      summary: str(raw.summary),
+      red_flags: arr(raw.red_flags).map((f) => (f && typeof f === "object" ? { finding: str(f.finding), action: str(f.action) } : { finding: str(f), action: "" })).filter((f) => f.finding),
+      problems: { subjective: strs(p.subjective), objective: strs(p.objective) },
+      differentials: arr(raw.differentials).filter((d) => d && typeof d === "object").map((d) => ({
+        name: str(d.name),
+        likelihood: pick(d.likelihood, LIKELIHOODS, "中"),
+        cant_miss: truthy(d.cant_miss),
+        status: pick(d.status, STATUSES, "待評估"),
+        supporting: strs(d.supporting),
+        against: strs(d.against),
+        next_step: str(d.next_step),
+        would_change: str(d.would_change),
+        status_reason: str(d.status_reason),
+      })).filter((d) => d.name).slice(0, 10),
+      cross_specialty: str(raw.cross_specialty),
+      lab_paradox: str(raw.lab_paradox),
+      next_steps: arr(raw.next_steps).map((s) => (s && typeof s === "object" ? { type: pick(s.type, STEP_TYPES, "問診"), item: str(s.item), why: str(s.why) } : { type: "問診", item: str(s), why: "" })).filter((s) => s.item).slice(0, 10),
+      data_gaps: strs(raw.data_gaps).slice(0, 10),
+      verify: arr(raw.verify).map((v) => (v && typeof v === "object" ? { claim: str(v.claim), query: str(v.query) } : { claim: str(v), query: "" })).filter((v) => v.claim).slice(0, 8),
+      taiwan_notes: strs(raw.taiwan_notes).slice(0, 6),
+      escalation: str(raw.escalation),
+    };
+  }
+  function normCritic(raw) {
+    raw = raw && typeof raw === "object" ? raw : {};
+    return {
+      verdict: pick(raw.verdict, VERDICTS, "部分同意"),
+      biggest_risk: str(raw.biggest_risk),
+      missed_differentials: arr(raw.missed_differentials).filter((m) => m && typeof m === "object").map((m) => ({ name: str(m.name), why: str(m.why), cant_miss: truthy(m.cant_miss) })).filter((m) => m.name).slice(0, 4),
+      overcalled: arr(raw.overcalled).filter((m) => m && typeof m === "object").map((m) => ({ name: str(m.name), why: str(m.why) })).filter((m) => m.name).slice(0, 4),
+      bias_flags: arr(raw.bias_flags).filter((b) => b && typeof b === "object").map((b) => ({ bias: pick(b.bias, BIASES, "其他"), note: str(b.note) })).filter((b) => b.note).slice(0, 5),
+      key_question: str(raw.key_question),
+    };
+  }
+  function normComm(raw) {
+    raw = raw && typeof raw === "object" ? raw : {};
+    return {
+      relationship_read: str(raw.relationship_read),
+      goal: str(raw.goal),
+      approach: strs(raw.approach).slice(0, 8),
+      phrases: arr(raw.phrases).map((p) => (p && typeof p === "object" ? { situation: str(p.situation), say: str(p.say) } : { situation: "", say: str(p) })).filter((p) => p.say).slice(0, 6),
+      boundaries: strs(raw.boundaries).slice(0, 6),
+      documentation: strs(raw.documentation).slice(0, 8),
+      objective_checks: strs(raw.objective_checks).slice(0, 6),
+      doctor_care: str(raw.doctor_care),
+      escalate: str(raw.escalate),
+    };
+  }
+
+  // A saved file or a hot-reload snapshot may come from an older version or be edited by hand.
+  function sanitizeState(raw) {
+    if (!raw || typeof raw !== "object" || !Array.isArray(raw.rounds) || !Array.isArray(raw.diffs) || !raw.case || typeof raw.case !== "object") return null;
+    const s = newState();
+    for (const k of Object.keys(s.case)) s.case[k] = str(raw.case[k]);
+    if (!s.case.reliability) s.case.reliability = "未評估";
+    s.rounds = raw.rounds.filter((r) => r && typeof r === "object" && r.analysis).map((r, i) => ({
+      n: i + 1, at: str(r.at), newInfo: str(r.newInfo), analysis: normAnalysis(r.analysis),
+      critic: r.critic ? normCritic(r.critic) : null, criticError: str(r.criticError), tier: str(r.tier),
+    }));
+    s.diffs = raw.diffs.filter((d) => d && typeof d === "object" && str(d.name)).map((d) => ({
+      id: str(d.id) || uid(), name: str(d.name), likelihood: pick(d.likelihood, LIKELIHOODS, "中"), cant_miss: truthy(d.cant_miss),
+      status: pick(d.status, STATUSES, "待評估"), supporting: strs(d.supporting), against: strs(d.against),
+      next_step: str(d.next_step), would_change: str(d.would_change), status_reason: str(d.status_reason),
+      source: str(d.source) || "推理", doctorEdited: truthy(d.doctorEdited), dropped: truthy(d.dropped), note: "",
+    }));
+    s.stall = Math.max(0, Math.min(99, Number(raw.stall) || 0));
+    s.editsSinceRound = truthy(raw.editsSinceRound);
+    s.confirmed = true;
+    s.isExample = raw.isExample === true;
+    return s;
+  }
+
+  // ---------- differential bookkeeping ----------
+  function mergeDiffs(prev, incoming, source) {
+    const prevByKey = new Map(prev.map((d) => [keyOf(d.name), d]));
+    const seen = new Set();
+    const out = [];
+    for (const d of incoming) {
+      const k = keyOf(d.name);
+      if (!k || seen.has(k)) continue;
+      seen.add(k);
+      const p = prevByKey.get(k);
+      const merged = { ...d, id: p ? p.id : uid(), source: p ? p.source : source, doctorEdited: p ? p.doctorEdited : false, dropped: false, note: "" };
+      if (p && p.doctorEdited) merged.status = p.status;
+      if (merged.cant_miss && merged.status === "擱置") { merged.status = "待評估"; merged.note = "不可錯過的診斷不能擱置，已改回待評估。"; }
+      out.push(merged);
+    }
+    for (const p of prev) {
+      if (!seen.has(keyOf(p.name))) out.push({ ...p, dropped: true });
+    }
+    return out;
+  }
+  function addMissed(s, critic) {
+    for (const m of critic.missed_differentials) {
+      const k = keyOf(m.name);
+      if (!k || s.diffs.some((d) => keyOf(d.name) === k)) continue;
+      s.diffs.push({
+        id: uid(), name: m.name, likelihood: "中", cant_miss: m.cant_miss, status: "待評估",
+        supporting: m.why ? [m.why] : [], against: [], next_step: "", would_change: "",
+        status_reason: "由反方審查新增，尚待評估。", source: "反方審查", doctorEdited: false, dropped: false, note: "",
+      });
+    }
+  }
+  function statusMap(diffs) { return new Map(diffs.map((d) => [keyOf(d.name), d.status])); }
+  function madeProgress(before, after) {
+    for (const d of after) {
+      const k = keyOf(d.name);
+      if (!before.has(k)) return true;
+      if (before.get(k) !== d.status) return true;
+    }
+    return false;
+  }
+
+  // ---------- prompts ----------
+  function caseBlock(s) {
+    const c = s.case;
+    const L = [];
+    L.push(`年齡：${c.age ? c.age + " 歲" : "未提供"}；性別：${c.sex || "未提供"}；就診場景：${c.setting || "未提供"}`);
+    L.push(`病史可靠度（醫師評估）：${c.reliability || "未評估"}`);
+    L.push(`主訴：${c.cc}`);
+    if (c.hpi) L.push(`現病史：${c.hpi}`);
+    if (c.pmh) L.push(`過去病史、用藥、過敏：${c.pmh}`);
+    if (c.pe) L.push(`理學檢查與生命徵象：${c.pe}`);
+    if (c.labs) L.push(`檢驗與影像：${c.labs}`);
+    if (c.thoughts) L.push(`醫師目前的想法：${c.thoughts}`);
+    for (const r of s.rounds) if (r.newInfo) L.push(`第 ${r.n} 輪新增資料：${r.newInfo}`);
+    return L.join("\n");
+  }
+  function prevBlock(s) {
+    if (!s.rounds.length) return "";
+    const last = s.rounds[s.rounds.length - 1];
+    const L = ["【上一輪鑑別狀態】"];
+    for (const d of s.diffs) {
+      L.push(`- ${d.name}｜可能性：${d.likelihood}｜不可錯過：${d.cant_miss ? "是" : "否"}｜狀態：${d.status}` +
+        (d.status_reason ? `｜理由：${d.status_reason}` : "") +
+        (d.doctorEdited ? "｜醫師已修改" : "") +
+        (d.source === "反方審查" ? "｜由反方審查新增" : "") +
+        (d.dropped ? "｜上一輪未提及" : ""));
+    }
+    if (last.analysis && last.analysis.data_gaps.length) L.push("【上一輪資料缺口】" + last.analysis.data_gaps.join("；"));
+    if (last.critic) L.push(`【上一輪反方審查】最大風險：${last.critic.biggest_risk || "無"}；關鍵問題：${last.critic.key_question || "無"}`);
+    L.push(`連續沒有進展的輪數：${s.stall}`);
+    return L.join("\n");
+  }
+  function buildReasonPrompt(s, newInfo) {
+    const n = s.rounds.length + 1;
+    return [
+      "你是協助台灣執業醫師的臨床推理顧問。使用這個工具的是醫師本人，你的輸出只給醫師看，不是對病人說話。",
+      "",
+      `這是第 ${n} 輪評估。` + (n > 1 ? "請延續上一輪的鑑別與狀態，並整合本輪新增的資料。" : ""),
+      "",
+      "【推理規則】",
+      "1. 只使用下面病例中有的資料，不要補寫病史、數值或檢查結果。資料不足的地方列入 data_gaps。",
+      "2. 先找紅旗：需要立即處置、轉急診或不能等的狀況列在 red_flags；沒有就給空陣列。",
+      "3. 鑑別診斷同時涵蓋「最可能」與「不可錯過」的診斷，共 3 到 7 個。可能性只用「高」「中」「低」，不要用百分比或分數。",
+      "4. 病史可靠度或對病人動機的疑慮，不能降低任何器質性診斷的可能性；它只決定哪些資料需要用客觀方式查證。",
+      "5. 不可錯過的診斷只能用客觀證據排除，不能列為「擱置」。",
+      "6. 症狀無法收斂在單一器官系統時，在 cross_specialty 說明應考慮的跨科原因（自體免疫、內分泌、藥物或毒物、罕見疾病）與起手檢查；不需要就填 null。",
+      "7. 理學檢查、症狀與檢驗互相矛盾時，在 lab_paradox 優先考慮檢驗干擾、檢體問題或偽陰性，並說明如何驗證；沒有矛盾就填 null。",
+      "8. 狀態只用：待評估、檢查中、已排除、已確立、擱置。已排除的診斷，只有在新資料與排除證據矛盾時才能重新打開，並在 status_reason 說明。標示「醫師已修改」的狀態以醫師為準，不要更動。",
+      "9. 每一輪至少讓一個鑑別往前推進。若「連續沒有進展的輪數」已達 2，請在 escalation 具體建議升級方式（會診、轉診、住院觀察或安排追蹤）；其他情況需要升級時也可以填。",
+      "10. 劑量、診斷標準、藥物交互作用等醫學事實，沒有十足把握就列入 verify，並附英文 PubMed 搜尋關鍵字。不要捏造文獻、指引名稱、年份或網址。",
+      "11. 台灣情境：可能是法定傳染病時提醒通報與送驗；涉及管制藥品時提醒查健保雲端藥歷；若提到 ICD-10 代碼，註明需依健保 2023 年版核對。這些放在 taiwan_notes。",
+      "12. 使用繁體中文，診斷名稱可附英文。內容精簡，每個欄位一兩句話即可。",
+      "",
+      "【輸出格式】",
+      "只回覆一個 JSON 物件，不要任何其他文字。欄位如下：",
+      JSON.stringify({
+        summary: "一句話總結目前的判斷與下一步重點",
+        red_flags: [{ finding: "紅旗發現", action: "建議的立即處置" }],
+        problems: { subjective: ["病人陳述（S）"], objective: ["客觀資料（O）"] },
+        differentials: [{ name: "診斷名稱", likelihood: "高", cant_miss: false, status: "待評估", supporting: ["支持的證據"], against: ["反對的證據"], next_step: "能區分這個診斷的下一步", would_change: "什麼結果會推翻或大幅改變這個判斷", status_reason: "狀態的理由" }],
+        cross_specialty: null,
+        lab_paradox: null,
+        next_steps: [{ type: "問診", item: "具體要做的事", why: "目的" }],
+        data_gaps: ["還缺少的關鍵資料"],
+        verify: [{ claim: "需要查證的醫學事實", query: "英文 PubMed 搜尋關鍵字" }],
+        taiwan_notes: [],
+        escalation: null,
+      }, null, 2),
+      "next_steps 依優先順序排列，type 只用：問診、理學檢查、檢驗、影像、處置、轉介、衛教。",
+      "",
+      "【病例資料】",
+      caseBlock(s),
+      prevBlock(s),
+      newInfo ? `【本輪新增資料】\n${newInfo}` : "",
+    ].filter((x) => x !== "").join("\n");
+  }
+  function buildCriticPrompt(s, round) {
+    const a = round.analysis;
+    const compact = {
+      summary: a.summary,
+      red_flags: a.red_flags,
+      differentials: a.differentials.map((d) => ({ name: d.name, likelihood: d.likelihood, cant_miss: d.cant_miss, status: d.status, supporting: d.supporting, against: d.against })),
+      cross_specialty: a.cross_specialty || null,
+      lab_paradox: a.lab_paradox || null,
+      next_steps: a.next_steps.map((x) => x.item),
+    };
+    return [
+      "你是資深主治醫師，負責對下面這份鑑別診斷做反方審查，專門找出可能的錯誤。使用這個工具的是醫師本人。",
+      "",
+      "【審查重點】",
+      "1. 錨定與過早收斂：如果最可能的診斷是錯的，最可能錯在哪裡？",
+      "2. 是否漏掉不可錯過的診斷。",
+      "3. 是否漏掉跨科、罕見疾病、藥物或毒物造成的原因。",
+      "4. 理學檢查與檢驗的矛盾、檢驗干擾是否被忽略。",
+      "5. 是否因為病史可靠度或動機疑慮而低估器質性疾病（診斷遮蔽）。",
+      "6. 是否有證據不足卻給了高可能性的過度推論。",
+      "",
+      "【規則】",
+      "只依據病例資料，不要捏造。找不到問題就如實說找不到，不要為了挑錯而挑錯。missed_differentials 只列真的值得加入的診斷，最多 4 個，且不要重複分析中已有的診斷。使用繁體中文。",
+      "",
+      "【輸出格式】",
+      "只回覆一個 JSON 物件，不要任何其他文字：",
+      JSON.stringify({
+        verdict: "同意",
+        biggest_risk: "這份分析最可能出錯的地方",
+        missed_differentials: [{ name: "診斷名稱", why: "為什麼要考慮", cant_miss: false }],
+        overcalled: [{ name: "診斷名稱", why: "為什麼可能高估" }],
+        bias_flags: [{ bias: "錨定", note: "具體說明" }],
+        key_question: "現在最該問或最該做的一件事",
+      }, null, 2),
+      "verdict 只用：同意、部分同意、需重新評估。bias 只用：錨定、過早收斂、診斷遮蔽、可得性偏誤、確認偏誤、其他。",
+      "",
+      "【病例資料】",
+      caseBlock(s),
+      "",
+      "【待審查的分析】",
+      JSON.stringify(compact, null, 2),
+    ].filter((x) => x !== "").join("\n");
+  }
+  function latestCaseSummary() {
+    const r = state && state.rounds[state.rounds.length - 1];
+    if (!r || !r.analysis) return "";
+    const active = state.diffs.filter((d) => !["已排除", "擱置"].includes(d.status)).map((d) => `${d.name}（${d.status}）`);
+    return `主訴：${state.case.cc}\n目前判斷：${r.analysis.summary}\n仍在考慮的診斷：${active.join("、") || "無"}`;
+  }
+  function buildCommPrompt(c) {
+    return [
+      "你是協助台灣醫師處理困難醫病溝通的顧問。使用這個工具的是醫師本人，你的建議只給醫師看。",
+      "",
+      "【原則】",
+      "1. 尊重病人，不貶低、不貼標籤。對病人動機的疑慮要用客觀資料查證（健保雲端藥歷、過去病歷、檢驗），不能因此減少必要的醫療評估。",
+      "2. 不建議欺騙或隱瞞。病情、診療計畫與紅旗症狀一定要告知病人（醫療法第 81 條的告知義務）。可以用「先問清楚、再說明」的方式換取完整病史，但不能把告知當成交換條件。",
+      "3. 拒絕不合理的要求時，說法要清楚、溫和、前後一致，並提供替代方案。",
+      "4. 關係斷裂、出現威脅或醫療糾紛風險時：建議客觀記錄（病人說了什麼、你提供了什麼、病人的回應、告知後拒絕），找資深同事、護理長或社工協助，必要時通知保全，不要升高衝突。",
+      "5. 醫師自己狀態不好時，給可以馬上做的建議（例如固定說法、請人陪同、交班）。",
+      "6. 使用繁體中文。phrases 要口語、醫師可以直接說出口。不要捏造法規條號或院內規定。",
+      "",
+      "【關係模型】",
+      "圓內：醫病是同一隊；圓邊：有摩擦；圓外：關係斷裂。向心：往合作靠近；離心：往衝突遠離。",
+      "",
+      "【輸出格式】",
+      "只回覆一個 JSON 物件，不要任何其他文字：",
+      JSON.stringify({
+        relationship_read: "目前關係的判讀與依據",
+        goal: "這次溝通最重要的目標",
+        approach: ["做法"],
+        phrases: [{ situation: "情境", say: "可以直接說的話" }],
+        boundaries: ["要守住的界線與替代方案"],
+        documentation: ["病歷要記錄的客觀事項"],
+        objective_checks: ["建議查證的客觀資料"],
+        doctor_care: "給醫師自己的建議，不需要就填 null",
+        escalate: "什麼情況要找人支援、找誰，不需要就填 null",
+      }, null, 2),
+      "",
+      "【醫師描述的狀況】",
+      `醫病關係：${c.rel || "未選"}；趨勢：${c.trend || "未選"}`,
+      `醫師注意到的狀況：${c.concerns.length ? c.concerns.join("、") : "無"}`,
+      `醫師目前的狀態：${c.doctor}`,
+      `情境描述：${c.situation}`,
+      c.include && latestCaseSummary() ? `【相關病例摘要】\n${latestCaseSummary()}` : "",
+    ].filter((x) => x !== "").join("\n");
+  }
+
+  // ---------- form <-> state ----------
+  const CASE_FIELDS = [["f-age", "age"], ["f-sex", "sex"], ["f-setting", "setting"], ["f-rel", "reliability"], ["f-cc", "cc"], ["f-hpi", "hpi"], ["f-pmh", "pmh"], ["f-pe", "pe"], ["f-labs", "labs"], ["f-thoughts", "thoughts"]];
+  const CASE_LABELS = { cc: "主訴", hpi: "現病史", pmh: "過去病史", pe: "理學檢查", labs: "檢驗", thoughts: "你目前的想法" };
+  function fillCaseForm(c) { for (const [id, k] of CASE_FIELDS) $(id).value = c[k] || (k === "reliability" ? "未評估" : ""); }
+  function readCaseForm() { const c = blankCase(); for (const [id, k] of CASE_FIELDS) c[k] = $(id).value.trim(); if (!c.reliability) c.reliability = "未評估"; return c; }
+
+  function buildConcernChoices() {
+    const box = $("concernBox");
+    box.replaceChildren(...CONCERNS.map((name, i) => h("label", { class: "choice" },
+      h("input", { type: "checkbox", id: "concern-" + i, value: name }), h("span", { text: name }))));
+  }
+  function fillCommForm(c) {
+    for (const r of document.querySelectorAll('input[name="rel"]')) r.checked = r.value === c.rel;
+    for (const r of document.querySelectorAll('input[name="trend"]')) r.checked = r.value === c.trend;
+    for (const box of document.querySelectorAll("#concernBox input")) box.checked = c.concerns.includes(box.value);
+    $("c-doctor").value = c.doctor || "平穩";
+    $("c-situation").value = c.situation || "";
+    $("c-include").checked = !!c.include;
+  }
+  function readCommForm() {
+    const val = (name) => { const el = document.querySelector(`input[name="${name}"]:checked`); return el ? el.value : ""; };
+    return {
+      rel: val("rel"), trend: val("trend"),
+      concerns: [...document.querySelectorAll("#concernBox input:checked")].map((b) => b.value),
+      doctor: $("c-doctor").value, situation: $("c-situation").value.trim(), include: $("c-include").checked,
+    };
+  }
+
+  // ---------- availability ----------
+  // The buttons stay pressable: when analysis cannot run, the page says why and what to do, next to the button.
+  const isBlocked = () => sampleStatus === "unavailable" || sampleStatus === "blocked";
+  function availPanel() {
+    const d = DIAG[blockedKind] || DIAG.nokey;
+    return h("div", { class: "notice notice-warn stack", style: "gap:8px" },
+      h("strong", { text: "目前無法分析：" + d.title }),
+      h("ol", null, d.steps.map((x) => h("li", { text: x }))));
+  }
+  function renderAvailability() {
+    const blocked = isBlocked();
+    $("btn-analyze").disabled = busy;
+    $("btn-comm").disabled = busyComm;
+    for (const id of ["availPanel", "availPanelComm"]) {
+      const box = $(id);
+      if (!box) continue;
+      box.hidden = !blocked;
+      box.replaceChildren(...(blocked ? [availPanel()] : []));
+    }
+    $("availHint").hidden = blocked;
+  }
+  function showAvailPanel(id) {
+    renderAvailability();
+    const p = $(id);
+    if (!p) return;
+    p.hidden = false;
+    try { p.scrollIntoView({ block: "center" }); } catch (_) { /* older browsers */ }
+  }
+
+  // ---------- progress ----------
+  function startProgress(step) {
+    stopProgressTimer();
+    progress = { step, startedAt: Date.now(), chars: 0, timer: setInterval(paintProgressNote, 1000) };
+    renderReason();
+  }
+  function setProgressStep(step) { if (progress) { progress.step = step; progress.chars = 0; progress.startedAt = Date.now(); renderReason(); } }
+  function stopProgressTimer() { if (progress && progress.timer) clearInterval(progress.timer); }
+  function endProgress() { stopProgressTimer(); progress = null; }
+  function paintProgressNote() {
+    const note = document.getElementById("progressNote");
+    if (!note || !progress) return;
+    const secs = Math.round((Date.now() - progress.startedAt) / 1000);
+    note.textContent = progress.chars > 0
+      ? `正在撰寫回覆…已收到 ${progress.chars} 字（${secs} 秒）`
+      : `思考中…（${secs} 秒），通常需要一到三分鐘。`;
+  }
+
+  // ---------- reasoning actions ----------
+  async function runReason(kind, newInfo) {
+    if (busy) return;
+    reasonError = "";
+    const base = kind === "new" ? { ...newState(), case: readCaseForm(), confirmed: true } : state;
+    busy = true;
+    pendingNew = kind === "new";
+    renderAvailability();
+    ctl = new AbortController();
+    startProgress(1);
+    let committed = false;
+    try {
+      const prompt = buildReasonPrompt(base, newInfo || "");
+      const res = await ask(prompt, { task: "reason", signal: ctl.signal });
+      const analysis = normAnalysis(res.data);
+      if (!analysis.differentials.length) throw { code: "invalid_json" };
+      const before = statusMap(base.diffs);
+      base.diffs = mergeDiffs(base.diffs, analysis.differentials, "推理");
+      const round = { n: base.rounds.length + 1, at: nowText(), newInfo: newInfo || "", analysis, critic: null, criticError: "", tier: res.tier };
+      if (round.n > 1) base.stall = (madeProgress(before, base.diffs) || base.editsSinceRound) ? 0 : base.stall + 1;
+      else base.stall = 0;
+      base.editsSinceRound = false;
+      base.rounds.push(round);
+      base.isExample = false;
+      state = base;
+      committed = true;
+      pendingNew = false;
+      if (kind === "follow") $("followText") && ($("followText").value = "");
+      setProgressStep(2);
+      await runCritic(round);
+    } catch (e) {
+      if (!(e && e.code === "cancelled")) { reasonError = errorCopy(e); handlePermanent(e); }
+      else if (!committed) reasonError = "已停止分析。";
+    } finally {
+      busy = false;
+      pendingNew = false;
+      endProgress();
+      renderAvailability();
+      renderReason();
+    }
+  }
+  async function runCritic(round) {
+    try {
+      const res = await ask(buildCriticPrompt(state, round), { task: "critic", signal: ctl.signal });
+      round.critic = normCritic(res.data);
+      round.criticError = "";
+      addMissed(state, round.critic);
+    } catch (e) {
+      if (e && e.code === "cancelled") round.criticError = "已停止反方審查。";
+      else { round.criticError = errorCopy(e); handlePermanent(e); }
+    }
+  }
+  async function retryCritic() {
+    if (busy || !state.rounds.length) return;
+    busy = true;
+    renderAvailability();
+    ctl = new AbortController();
+    startProgress(2);
+    try { await runCritic(state.rounds[state.rounds.length - 1]); }
+    finally { busy = false; endProgress(); renderAvailability(); renderReason(); }
+  }
+
+  function onAnalyzeSubmit(ev) {
+    ev.preventDefault();
+    const box = $("formAlert");
+    box.hidden = true;
+    if (busy) return;
+    if (isBlocked()) { showAvailPanel("availPanel"); return; }
+    const c = readCaseForm();
+    if (!c.cc) { showAlert(box, "warn", "請先填寫主訴。"); $("f-cc").focus(); return; }
+    if (!$("f-confirm").checked) { showAlert(box, "warn", "請勾選確認已移除可識別資料。"); $("f-confirm").focus(); return; }
+    const hits = scanPII(Object.entries(CASE_LABELS).map(([k, label]) => [label, c[k]]));
+    if (hits.length) {
+      showAlert(box, "flag", "偵測到疑似可識別資料，請刪除後再送出：", hits.map((x) => `${x.label}：${x.type}（${x.masked}）`));
+      return;
+    }
+    if (state.rounds.length && !state.isExample) { $("resetConfirm").hidden = false; return; }
+    runReason("new", "");
+  }
+  function onFollow() {
+    const ta = $("followText");
+    const alertBox = $("followAlert");
+    alertBox.hidden = true;
+    const text = ta.value.trim();
+    if (!text) { showAlert(alertBox, "warn", "請先輸入新的資料。"); ta.focus(); return; }
+    const hits = scanPII([["新的資料", text]]);
+    if (hits.length) { showAlert(alertBox, "flag", "偵測到疑似可識別資料，請刪除後再送出：", hits.map((x) => `${x.type}（${x.masked}）`)); return; }
+    runReason("follow", text);
+  }
+  function onStatusChange(d, value) {
+    if (d.cant_miss && value === "擱置") { toast("不可錯過的診斷不能擱置，只能用客觀證據排除。"); renderReason(); return; }
+    d.status = value;
+    d.doctorEdited = true;
+    d.note = "";
+    state.editsSinceRound = true;
+    renderReason();
+  }
+
+  // ---------- summary, save, open ----------
+  function summaryText() {
+    const r = state.rounds[state.rounds.length - 1];
+    if (!r) return "";
+    const L = [`【Doubt-Driven 鑑別工作台・第 ${r.n} 輪】${r.at}`, `主訴：${state.case.cc}`];
+    if (r.analysis.summary) L.push(`總結：${r.analysis.summary}`);
+    if (r.analysis.red_flags.length) L.push("紅旗：" + r.analysis.red_flags.map((f) => f.finding + (f.action ? `（${f.action}）` : "")).join("；"));
+    L.push("鑑別診斷：");
+    for (const d of state.diffs) L.push(`- ${d.name}（可能性 ${d.likelihood}／${d.status}${d.cant_miss ? "／不可錯過" : ""}）`);
+    if (r.analysis.next_steps.length) { L.push("下一步："); r.analysis.next_steps.forEach((s, i) => L.push(`${i + 1}. [${s.type}] ${s.item}`)); }
+    if (r.analysis.data_gaps.length) L.push("資料缺口：" + r.analysis.data_gaps.join("；"));
+    if (r.critic) L.push(`反方審查：${r.critic.verdict}。${r.critic.biggest_risk}${r.critic.key_question ? " 關鍵問題：" + r.critic.key_question : ""}`);
+    L.push("（AI 輔助產生，僅供醫師參考，請自行查證）");
+    return L.join("\n");
+  }
+  function onCopy() {
+    const text = summaryText();
+    if (!text) return;
+    const done = () => { showCopy = ""; toast("摘要已複製"); renderReason(); };
+    try {
+      navigator.clipboard.writeText(text).then(done, () => { showCopy = text; renderReason(); });
+    } catch (_) { showCopy = text; renderReason(); }
+  }
+  async function onSave() {
+    if (!downloadsApi) return;
+    const d = new Date();
+    const pad = (x) => String(x).padStart(2, "0");
+    const filename = `鑑別紀錄-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.json`;
+    const payload = { app: "doubt-driven-ddx", version: 1, savedAt: d.toISOString(), state };
+    try {
+      await downloadsApi.save({ filename, data: JSON.stringify(payload, null, 2) });
+      toast("已存檔");
+    } catch (e) {
+      if (e && e.code === "declined") return;
+      if (e && (e.code === "unavailable" || e.code === "not_granted")) { downloadsApi = null; renderReason(); }
+      toast("這個畫面無法存檔。可以改用「複製摘要」。");
+    }
+  }
+  function onOpenFile(ev) {
+    const file = ev.target.files && ev.target.files[0];
+    ev.target.value = "";
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const obj = JSON.parse(String(reader.result));
+        if (!obj || obj.app !== "doubt-driven-ddx") throw new Error("bad");
+        const s = sanitizeState(obj.state);
+        if (!s) throw new Error("bad");
+        state = s;
+        fillCaseForm(state.case);
+        $("f-confirm").checked = true;
+        reasonError = "";
+        renderReason();
+        toast(`已開啟存檔（共 ${state.rounds.length} 輪）`);
+      } catch (_) {
+        toast("這不是本工具的存檔檔案。");
+      }
+    };
+    reader.readAsText(file);
+  }
+  function onClear() {
+    if (busy) return;
+    state = newState();
+    fillCaseForm(state.case);
+    $("f-confirm").checked = false;
+    $("formAlert").hidden = true;
+    $("resetConfirm").hidden = true;
+    reasonError = "";
+    showCopy = "";
+    renderReason();
+    $("f-cc").focus();
+  }
+
+  // ---------- rendering: reasoning ----------
+  const statusChipClass = (s) => (s === "檢查中" ? "chip chip-warn" : s === "已確立" ? "chip chip-ok" : s === "待評估" ? "chip chip-accent" : "chip");
+  const likelihoodChip = (l) => h("span", { class: l === "高" ? "chip chip-accent" : "chip" }, "可能性 " + l);
+  function list(items) { return items.length ? h("ul", null, items.map((t) => h("li", { text: t }))) : h("p", { class: "meta", text: "無" }); }
+
+  function renderDx(d) {
+    const closed = d.status === "已排除" || d.status === "擱置";
+    const sel = h("select", { id: "status-" + d.id, "aria-label": d.name + " 的狀態", disabled: busy || state.isExample ? true : null, onchange: (e) => onStatusChange(d, e.target.value) },
+      STATUSES.map((s) => h("option", { value: s, selected: s === d.status ? true : null }, s)));
+    const warnDropped = d.dropped && d.cant_miss && !closed;
+    return h("article", { class: "dx", "data-closed": closed ? "true" : "false" },
+      h("div", { class: "dx-head" },
+        h("h4", { class: "dx-name", text: d.name }),
+        h("div", { class: "dx-tags" },
+          d.cant_miss ? h("span", { class: "chip chip-flag" }, "不可錯過") : null,
+          likelihoodChip(d.likelihood),
+          h("span", { class: statusChipClass(d.status) }, d.status),
+          d.source === "反方審查" ? h("span", { class: "chip" }, "反方審查新增") : null,
+          d.doctorEdited ? h("span", { class: "chip" }, "醫師修改") : null,
+          d.dropped ? h("span", { class: "chip" }, "本輪未提及") : null)),
+      (d.supporting.length || d.against.length) ? h("div", { class: "dx-ev" },
+        h("div", null, h("p", { class: "k", text: "支持" }), list(d.supporting)),
+        h("div", null, h("p", { class: "k", text: "反對" }), list(d.against))) : null,
+      (d.next_step || d.would_change || d.status_reason) ? h("dl", { class: "dx-meta" },
+        d.next_step ? [h("dt", { text: "下一步" }), h("dd", { text: d.next_step })] : null,
+        d.would_change ? [h("dt", { text: "推翻條件" }), h("dd", { text: d.would_change })] : null,
+        d.status_reason ? [h("dt", { text: "狀態理由" }), h("dd", { text: d.status_reason })] : null) : null,
+      h("div", { class: "dx-foot" },
+        h("label", { for: "status-" + d.id }, "狀態", sel),
+        warnDropped ? h("span", { class: "dx-warn", text: "不可錯過但本輪未提及，請確認是否已排除。" }) : d.note ? h("span", { class: "dx-warn", text: d.note }) : null));
+  }
+
+  function renderCritic(r) {
+    if (!r.critic) {
+      if (progress && progress.step === 2) return null;
+      return h("section", { class: "critic stack" },
+        h("div", { class: "critic-head" }, h("h3", { text: "反方審查" })),
+        h("p", { class: "meta", text: r.criticError || "這一輪還沒有反方審查。" }),
+        state.isExample ? null : h("div", { class: "actions" }, h("button", { type: "button", class: "btn", disabled: busy || sampleStatus !== "ready" ? true : null, onclick: retryCritic }, "重新做反方審查")));
+    }
+    const c = r.critic;
+    const vClass = c.verdict === "同意" ? "chip chip-ok" : c.verdict === "需重新評估" ? "chip chip-flag" : "chip chip-warn";
+    return h("section", { class: "critic stack" },
+      h("div", { class: "critic-head" }, h("h3", { text: "反方審查" }), h("span", { class: vClass }, c.verdict)),
+      c.biggest_risk ? h("div", null, h("p", { class: "section-h", text: "最可能出錯的地方" }), h("p", { text: c.biggest_risk })) : null,
+      c.missed_differentials.length ? h("div", null, h("p", { class: "section-h", text: "可能漏掉的診斷（已加入鑑別清單）" }),
+        h("ul", null, c.missed_differentials.map((m) => h("li", null, h("b", { text: m.name }), m.cant_miss ? "（不可錯過）" : "", m.why ? "：" + m.why : "")))) : null,
+      c.overcalled.length ? h("div", null, h("p", { class: "section-h", text: "可能高估" }),
+        h("ul", null, c.overcalled.map((m) => h("li", null, h("b", { text: m.name }), m.why ? "：" + m.why : "")))) : null,
+      c.bias_flags.length ? h("div", null, h("p", { class: "section-h", text: "偏誤提醒" }),
+        h("ul", null, c.bias_flags.map((b) => h("li", null, h("span", { class: "chip chip-warn" }, b.bias), " ", b.note)))) : null,
+      c.key_question ? h("p", { class: "keyq" }, h("b", { text: "現在最該做的事：" }), c.key_question) : null);
+  }
+
+  function renderRound(r) {
+    const a = r.analysis;
+    return [
+      h("section", { class: "panel" },
+        h("div", { class: "round-head" },
+          h("div", null, h("p", { class: "round-tag", text: `R${r.n} · PROGRESS NOTE` }), h("h3", { class: "round-title", text: `第 ${r.n} 輪評估` })),
+          h("p", { class: "meta" }, r.at, r.tier ? ` · ${TIER_LABEL[r.tier] || r.tier}` : "")),
+        r.newInfo ? h("p", { class: "meta", style: "margin-top:6px" }, "本輪新增資料：", r.newInfo) : null,
+        a.summary ? h("p", { class: "summary", text: a.summary }) : null),
+      state.stall >= 2 ? h("div", { class: "notice notice-warn" }, h("strong", { text: "連續兩輪沒有進展。" }), " 建議考慮會診、轉診、住院觀察或安排追蹤，而不是在這裡硬下結論。") : null,
+      a.red_flags.length ? h("section", { class: "stack" }, h("p", { class: "section-k", text: "Red flags · 紅旗" }),
+        h("div", { class: "flags" }, a.red_flags.map((f) => h("div", { class: "flag-item" }, h("b", { text: f.finding }), f.action ? "　" + f.action : "")))) : null,
+      a.escalation ? h("div", { class: "notice notice-flag" }, h("strong", { text: "建議升級：" }), a.escalation) : null,
+      (a.problems.subjective.length || a.problems.objective.length) ? h("section", null, h("p", { class: "section-k", text: "Problem list · 問題列表" }),
+        h("div", { class: "so" },
+          h("div", null, h("p", null, h("span", { class: "so-k", text: "S" }), "病人陳述"), list(a.problems.subjective)),
+          h("div", null, h("p", null, h("span", { class: "so-k", text: "O" }), "客觀資料"), list(a.problems.objective)))) : null,
+      h("section", null, h("p", { class: "section-k", text: "Differential · 鑑別診斷" }),
+        h("div", { class: "dx-list" }, state.diffs.map(renderDx))),
+      (a.cross_specialty || a.lab_paradox) ? h("section", { class: "stack" }, h("p", { class: "section-k", text: "Doubt check · 疑點檢查" }),
+        a.lab_paradox ? h("div", { class: "notice notice-info" }, h("strong", { text: "檢驗矛盾：" }), a.lab_paradox) : null,
+        a.cross_specialty ? h("div", { class: "notice notice-info" }, h("strong", { text: "跨科與罕見原因：" }), a.cross_specialty) : null) : null,
+      a.next_steps.length ? h("section", null, h("p", { class: "section-k", text: "Next steps · 下一步（依優先順序）" }),
+        h("ol", { class: "steps" }, a.next_steps.map((s) => h("li", null, h("div", { class: "step-body" },
+          h("p", null, h("span", { class: "chip chip-accent" }, s.type), " ", s.item), s.why ? h("p", { class: "step-why", text: s.why }) : null))))) : null,
+      a.data_gaps.length ? h("section", null, h("p", { class: "section-k", text: "Data gaps · 資料缺口" }), list(a.data_gaps)) : null,
+      a.verify.length ? h("section", null, h("p", { class: "section-k", text: "To verify · 需要查證" }),
+        h("ul", { class: "verify" }, a.verify.map((v) => h("li", null, v.claim, v.query ? [" ", h("a", { href: "https://pubmed.ncbi.nlm.nih.gov/?term=" + encodeURIComponent(v.query), target: "_blank", rel: "noopener noreferrer" }, "在 PubMed 搜尋")] : null)))) : null,
+      a.taiwan_notes.length ? h("section", null, h("p", { class: "section-k", text: "Taiwan · 台灣情境提醒" }), list(a.taiwan_notes)) : null,
+      renderCritic(r),
+    ];
+  }
+
+  function renderReason() {
+    const out = $("reasonOut");
+    if (!out || !state) return;
+    const kids = [];
+    if (state.isExample) {
+      kids.push(h("div", { class: "notice notice-info" }, h("strong", { text: "範例：" }),
+        "下面是預先寫好的示範病例與結果，讓你先看看會得到什麼，不是即時分析。左邊已填好範例病例，按「開始分析」可以實際跑一次；按「清除，輸入新病例」開始你自己的病例。"));
+    }
+    if (isBlocked()) {
+      const d = DIAG[blockedKind] || DIAG.nokey;
+      kids.push(h("div", { class: "notice notice-warn" }, h("strong", { text: "目前無法分析：" }), d.title, "。解決步驟在「開始分析」按鈕上方。"));
+    }
+    if (progress) {
+      const st = (n) => (progress.step === n ? "active" : progress.step > n ? "done" : "wait");
+      kids.push(h("div", { class: "progress" },
+        h("ol", { class: "progress-steps" },
+          h("li", { "data-state": st(1) }, h("span", { class: "dot" }), "臨床推理"),
+          h("li", { "data-state": st(2) }, h("span", { class: "dot" }), "反方審查")),
+        h("p", { class: "progress-note", id: "progressNote" }),
+        h("div", { class: "actions", style: "margin-top:10px" }, h("button", { type: "button", class: "btn", onclick: () => ctl && ctl.abort() }, "停止"))));
+    }
+    if (reasonError) kids.push(h("div", { class: "notice notice-flag" }, h("strong", { text: "沒有完成：" }), reasonError));
+
+    if (pendingNew) {
+      out.replaceChildren(...kids);
+      paintProgressNote();
+      return;
+    }
+
+    if (!state.rounds.length) {
+      if (!progress) kids.push(h("div", { class: "panel empty" },
+        h("h3", { text: "結果會出現在這裡" }),
+        h("p", { text: "輸入病例後按「開始分析」。你會看到紅旗、問題列表、鑑別診斷（含不可錯過的診斷）、下一步，以及反方審查。也可以用「開啟存檔」接續之前的病例。" }),
+        h("div", { class: "actions", style: "margin-top:12px" },
+          h("button", { type: "button", class: "btn", onclick: () => $("fileInput").click() }, "開啟存檔"),
+          h("button", { type: "button", class: "btn btn-quiet", onclick: loadExample }, "載入範例"))));
+      out.replaceChildren(...kids);
+      paintProgressNote();
+      return;
+    }
+
+    kids.push(h("div", { class: "toolbar" },
+      h("div", { class: "actions" },
+        h("button", { type: "button", class: "btn", onclick: onCopy, disabled: state.isExample ? true : null }, "複製摘要"),
+        downloadsApi ? h("button", { type: "button", class: "btn", onclick: onSave, disabled: state.isExample ? true : null }, "存檔") : null,
+        h("button", { type: "button", class: "btn", onclick: () => $("fileInput").click() }, "開啟存檔")),
+      h("span", { class: "meta", text: `共 ${state.rounds.length} 輪` })));
+    if (showCopy) {
+      kids.push(h("div", { class: "notice stack" }, h("p", { text: "這個畫面不能直接複製，請選取下面的文字手動複製：" }),
+        h("textarea", { class: "copybox", id: "copyBox", readonly: true }, showCopy)));
+    }
+
+    const latest = state.rounds[state.rounds.length - 1];
+    kids.push(...renderRound(latest).filter(Boolean));
+
+    if (!state.isExample) {
+      kids.push(h("section", { class: "panel stack" },
+        h("div", null, h("h3", { class: "panel-title", text: `下一輪（第 ${state.rounds.length + 1} 輪）` }),
+          h("p", { class: "panel-sub", text: "輸入新的病史、檢查或檢驗結果。你在上面修改的診斷狀態會一起帶入。" })),
+        h("div", { class: "field" }, h("label", { for: "followText", text: "新的資料" }),
+          h("textarea", { id: "followText", class: "tall", placeholder: "例如：停用生物素 5 天後重驗 TSH 1.8 mIU/L、Free T4 1.2 ng/dL" })),
+        h("div", { id: "followAlert", hidden: true }),
+        h("div", { class: "actions" },
+          h("button", { type: "button", class: "btn btn-primary", disabled: busy || sampleStatus === "unavailable" || sampleStatus === "blocked" ? true : null, onclick: onFollow }, "更新分析"))));
+    }
+
+    if (state.rounds.length > 1) {
+      kids.push(h("section", { class: "history" }, h("p", { class: "section-k", text: "Earlier rounds · 先前各輪" }),
+        state.rounds.slice(0, -1).reverse().map((r) => h("details", null,
+          h("summary", null, `第 ${r.n} 輪 · ${r.at}`),
+          h("div", { class: "hist-body" },
+            r.newInfo ? h("p", { class: "meta" }, "新增資料：", r.newInfo) : null,
+            h("p", { text: r.analysis.summary || "（無總結）" }),
+            h("p", { class: "meta" }, "當輪鑑別：", r.analysis.differentials.map((d) => `${d.name}（${d.status}）`).join("、")),
+            r.critic ? h("p", { class: "meta" }, `反方審查：${r.critic.verdict}。${r.critic.biggest_risk}`) : null)))));
+    }
+
+    // keep what the doctor was typing in the follow-up box across re-renders
+    const prevFollow = document.getElementById("followText");
+    const draft = prevFollow ? prevFollow.value : "";
+    out.replaceChildren(...kids);
+    const nextFollow = document.getElementById("followText");
+    if (nextFollow && draft) nextFollow.value = draft;
+    const cb = document.getElementById("copyBox");
+    if (cb) { cb.focus(); cb.select(); }
+    paintProgressNote();
+  }
+
+  function loadExample() {
+    if (busy) return;
+    state = exampleState();
+    fillCaseForm(state.case);
+    $("f-confirm").checked = false;
+    reasonError = "";
+    renderReason();
+  }
+
+  // ---------- communication ----------
+  function relFigure(rel, trend) {
+    const NS = "http://www.w3.org/2000/svg";
+    const s = (tag, attrs) => { const el = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v); return el; };
+    const svg = s("svg", { viewBox: "0 0 120 120", role: "img", "aria-label": `關係位置：${rel || "未選"}，趨勢：${trend || "未選"}` });
+    svg.append(s("rect", { x: 1, y: 1, width: 118, height: 118, rx: 10, class: "zone-out" }));
+    svg.append(s("circle", { cx: 60, cy: 60, r: 40, class: "zone-ring" }));
+    svg.append(s("circle", { cx: 60, cy: 60, r: 28, class: "zone-in" }));
+    const pos = rel === "圓內" ? [60, 60] : rel === "圓邊" ? [88, 60] : [108, 60];
+    if (trend === "向心" || trend === "離心") {
+      const dir = trend === "向心" ? -1 : 1;
+      const x1 = pos[0], x2 = Math.max(14, Math.min(114, pos[0] + dir * 16));
+      svg.append(s("line", { x1, y1: 44, x2, y2: 44, class: "arrow" }));
+      svg.append(s("path", { d: dir > 0 ? `M${x2} 44 l-6 -4 v8 z` : `M${x2} 44 l6 -4 v8 z`, class: "arrowhead" }));
+    }
+    svg.append(s("circle", { cx: pos[0], cy: pos[1], r: 6, class: "pt" }));
+    const label = s("text", { x: 60, y: 63, "text-anchor": "middle" });
+    label.textContent = rel === "圓內" ? "" : "同一隊";
+    svg.append(label);
+    return svg;
+  }
+
+  function renderComm() {
+    const out = $("commOut");
+    if (!out || !comm) return;
+    const kids = [];
+    if (comm.isExample) kids.push(h("div", { class: "notice notice-info" }, h("strong", { text: "範例：" }), "下面是預先寫好的示範建議，不是即時分析。修改左邊的狀況後按「產生溝通建議」。"));
+    if (busyComm) {
+      kids.push(h("div", { class: "progress" },
+        h("ol", { class: "progress-steps" }, h("li", { "data-state": "active" }, h("span", { class: "dot" }), "產生溝通建議")),
+        h("p", { class: "progress-note", text: "思考中…通常需要半分鐘到一分鐘。" }),
+        h("div", { class: "actions", style: "margin-top:10px" }, h("button", { type: "button", class: "btn", onclick: () => ctlComm && ctlComm.abort() }, "停止"))));
+    }
+    if (comm.error) kids.push(h("div", { class: "notice notice-flag" }, h("strong", { text: "沒有完成：" }), comm.error));
+    const r = comm.result;
+    if (r) {
+      const sayCard = (p) => h("div", { class: "phrase" },
+        p.situation ? h("p", { class: "sit", text: p.situation }) : null,
+        h("p", { class: "say", text: p.say }),
+        h("div", { class: "phrase-foot" }, h("button", { type: "button", class: "btn btn-quiet", onclick: () => {
+          try { navigator.clipboard.writeText(p.say).then(() => toast("已複製這句話"), () => toast("無法複製，請手動選取文字")); } catch (_) { toast("無法複製，請手動選取文字"); }
+        } }, "複製")));
+      kids.push(h("section", { class: "panel stack" },
+        h("div", { class: "rel-figure" }, relFigure(comm.rel, comm.trend),
+          h("div", { style: "min-width:0;flex:1" },
+            h("p", { class: "section-k", text: "Relationship · 關係判讀" }),
+            h("p", { text: r.relationship_read || "—" }),
+            r.goal ? h("p", { style: "margin-top:8px" }, h("b", { text: "這次的目標：" }), r.goal) : null)),
+        comm.tier ? h("p", { class: "meta", text: TIER_LABEL[comm.tier] || comm.tier }) : null));
+      if (r.phrases.length) kids.push(h("section", null, h("p", { class: "section-k", text: "Say it · 可以這樣說" }), h("div", { class: "phrases" }, r.phrases.map(sayCard))));
+      if (r.approach.length) kids.push(h("section", null, h("p", { class: "section-k", text: "Approach · 做法" }), h("ol", { class: "steps" }, r.approach.map((t) => h("li", null, h("div", { class: "step-body", text: t }))))));
+      const blocks = [["Boundaries · 要守住的界線", r.boundaries], ["Chart it · 病歷要記錄", r.documentation], ["Verify · 客觀查證", r.objective_checks]];
+      for (const [k, items] of blocks) if (items.length) kids.push(h("section", null, h("p", { class: "section-k", text: k }), list(items)));
+      if (r.doctor_care) kids.push(h("div", { class: "notice notice-info" }, h("strong", { text: "給你自己：" }), r.doctor_care));
+      if (r.escalate) kids.push(h("div", { class: "notice notice-warn" }, h("strong", { text: "何時找人支援：" }), r.escalate));
+    } else if (!busyComm) {
+      kids.push(h("div", { class: "panel empty" }, h("h3", { text: "建議會出現在這裡" }), h("p", { text: "選擇醫病關係、你注意到的狀況，描述發生了什麼，再按「產生溝通建議」。" })));
+    }
+    out.replaceChildren(...kids);
+  }
+
+  async function onCommSubmit(ev) {
+    ev.preventDefault();
+    if (busyComm) return;
+    if (isBlocked()) { showAvailPanel("availPanelComm"); return; }
+    const box = $("commAlert");
+    box.hidden = true;
+    const c = readCommForm();
+    if (!c.situation) { showAlert(box, "warn", "請描述發生了什麼。"); $("c-situation").focus(); return; }
+    const hits = scanPII([["發生了什麼", c.situation]]);
+    if (hits.length) { showAlert(box, "flag", "偵測到疑似可識別資料，請刪除後再送出：", hits.map((x) => `${x.type}（${x.masked}）`)); return; }
+    busyComm = true;
+    comm = { ...comm, ...c, error: "" };
+    renderAvailability();
+    renderComm();
+    ctlComm = new AbortController();
+    try {
+      const res = await ask(buildCommPrompt(c), { task: "comm", signal: ctlComm.signal });
+      comm = { ...comm, ...c, result: normComm(res.data), isExample: false, tier: res.tier, error: "" };
+    } catch (e) {
+      if (!(e && e.code === "cancelled")) { comm.error = errorCopy(e); handlePermanent(e); }
+    } finally {
+      busyComm = false;
+      renderAvailability();
+      renderComm();
+    }
+  }
+
+  // ---------- routing ----------
+  const VIEWS = { reason: "view-reason", comm: "view-comm", guide: "view-guide" };
+  function route() {
+    const name = (location.hash || "").replace(/^#/, "");
+    const view = VIEWS[name] ? name : "reason";
+    for (const [k, id] of Object.entries(VIEWS)) {
+      $(id).hidden = k !== view;
+      $("tab-" + k).setAttribute("aria-selected", k === view ? "true" : "false");
+    }
+  }
+
+  // ---------- boot ----------
+  function start(data) {
+    const saved = data && typeof data === "object" ? data : {};
+    state = sanitizeState(saved.state) || exampleState();
+    comm = saved.comm && typeof saved.comm === "object" ? { ...exampleComm(), ...saved.comm } : exampleComm();
+    buildConcernChoices();
+    fillCaseForm(state.case);
+    $("f-confirm").checked = !!state.confirmed && !state.isExample;
+    fillCommForm(comm);
+    $("caseForm").addEventListener("submit", onAnalyzeSubmit);
+    $("commForm").addEventListener("submit", onCommSubmit);
+    $("btn-clear").addEventListener("click", onClear);
+    $("btn-reset-yes").addEventListener("click", () => { $("resetConfirm").hidden = true; runReason("new", ""); });
+    $("btn-reset-no").addEventListener("click", () => { $("resetConfirm").hidden = true; });
+    $("fileInput").addEventListener("change", onOpenFile);
+    window.addEventListener("hashchange", route);
+    route();
+    renderAvailability();
+    renderReason();
+    renderComm();
+  }
+
+  start({});
+})();
+</script>
+
+</body>
+</html>
