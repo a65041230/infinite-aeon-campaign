@@ -68,6 +68,12 @@ function rateLimited(client: string): boolean {
   return limited;
 }
 
+// DDX_PUBLIC=1 lets anyone with the address use the site. Otherwise the
+// DDX_ACCESS_KEY code carried by the shared link is required.
+function isPublic(): boolean {
+  return /^(1|true|yes)$/i.test((process.env.DDX_PUBLIC ?? "").trim());
+}
+
 function accessOk(given: string | null): boolean {
   const keys = (process.env.DDX_ACCESS_KEY ?? "")
     .split(",")
@@ -223,8 +229,13 @@ async function streamDeepSeek(p: Provider, prompt: string, signal: AbortSignal, 
 
 export async function POST(req: Request): Promise<Response> {
   const provider = pickProvider();
-  if (!provider || !process.env.DDX_ACCESS_KEY) return json(503, { error: "not_configured" });
-  if (!accessOk(req.headers.get("x-ddx-key"))) return json(401, { error: "bad_key" });
+  const publicSite = isPublic();
+  if (!provider || (!publicSite && !process.env.DDX_ACCESS_KEY)) return json(503, { error: "not_configured" });
+  if (!publicSite) {
+    const given = req.headers.get("x-ddx-key");
+    if (!given?.trim()) return json(401, { error: "no_key" });
+    if (!accessOk(given)) return json(401, { error: "bad_key" });
+  }
 
   const client = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
   if (rateLimited(client)) return json(429, { error: "rate_limited" });

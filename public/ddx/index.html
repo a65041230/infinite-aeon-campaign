@@ -368,7 +368,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       <p>遇到索取管制藥品、要求開立證明、情緒激動或有醫療糾紛風險的病人時使用。依照圓內、圓邊、圓外的關係模型，提供可以直接說出口的話、要守住的界線、病歷要記錄的事項，以及什麼時候要找人支援。</p>
       <h3>不能分析怎麼辦</h3>
       <ul>
-        <li>出現「少了通行碼」：請向分享者索取完整連結（網址最後有 ?k= 開頭的一串字）。用完整連結打開一次後，這台裝置會記住通行碼。</li>
+        <li>網站有設通行碼時，如果出現「少了通行碼」：請向分享者索取完整連結（網址最後有 ?k= 開頭的一串字）。用完整連結打開一次後，這台裝置會記住通行碼。</li>
         <li>出現「使用量暫時達到上限」：請稍等一段時間再試。</li>
         <li>其他錯誤：重新整理頁面後再試一次，持續發生請告訴分享者。</li>
       </ul>
@@ -602,8 +602,8 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       try { accessKey = localStorage.getItem(KEY_STORE) || ""; } catch (_) { accessKey = ""; }
     }
   } catch (_) { /* keep accessKey empty */ }
-  let sampleStatus = accessKey ? "ready" : "unavailable";   // ready | unavailable | blocked
-  let blockedKind = accessKey ? "" : "nokey";
+  let sampleStatus = "ready";   // the server answers no_key when the site requires a code   // ready | unavailable | blocked
+  let blockedKind = "";
   const DIAG = {
     nokey: { title: "這個連結少了通行碼", steps: [
       "在下面輸入通行碼（或貼上完整連結），按「使用」。",
@@ -626,7 +626,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       return { status: "saved" };
     },
   };
-  const PERMANENT = { bad_key: "badkey", not_configured: "notready" };
+  const PERMANENT = { no_key: "nokey", bad_key: "badkey", not_configured: "notready" };
 
   function errorCopy(e) {
     switch (e && e.code) {
@@ -658,12 +658,11 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
 
   // Calls this site's /api/ddx, which streams newline-delimited JSON events.
   async function ask(prompt, { task, signal }) {
-    if (!accessKey) throw { code: "no_key" };
     let res;
     try {
       res = await fetch("/api/ddx", {
         method: "POST",
-        headers: { "content-type": "application/json", "x-ddx-key": accessKey },
+        headers: { "content-type": "application/json", ...(accessKey ? { "x-ddx-key": accessKey } : {}) },
         body: JSON.stringify({ task, prompt }),
         signal,
       });
