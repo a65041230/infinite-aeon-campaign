@@ -45,14 +45,15 @@ vercel env add DDX_ACCESS_KEY production
 vercel deploy --prod --yes
 ```
 
-權杖在 vercel.com/account/settings/tokens 建立。在 Claude 雲端工作階段裡，權杖存在環境的 Network secrets（主機 `api.vercel.com`）；CLI 的 `--token` 填任意不含 `-` 的字串，代理會換成真的權杖。專案建立後，到它的 **Settings → Environment Variables** 加上 AI 金鑰，再重新部署。
+權杖在 vercel.com/account/tokens 建立（Scope 選團隊、All Projects）。在 Claude 雲端工作階段裡，權杖存在環境的 Network secrets（主機 `api.vercel.com`）；CLI 的 `--token` 填任意不含 `-` 的字串，代理會換成真的權杖。專案建立後，到它的 **Settings → Environment Variables** 加上 AI 金鑰，再重新部署。
 
 **或在 Vercel 網頁操作**：把這個分支合併到 main 再部署（Preview 部署預設需要 Vercel 登入，醫師打不開，要用 Production）。
 
 之後：
 
 1. 設定或修改環境變數後，到 **Deployments** 對最新一筆按 **Redeploy**（或再跑一次 `vercel deploy --prod`）。
-2. 給醫師的連結：`https://你的網域/ddx?k=你的通行碼`。用專案的正式網域（例如 `doubt-ddx.vercel.app`），不要用每次部署產生的那串網址，那串預設也要 Vercel 登入。
+2. 到專案的 **Settings → Deployment Protection** 關掉 **Vercel Authentication**。這個帳號的新專案預設連 `.vercel.app` 正式網域都要登入 Vercel，醫師會打不開（API：`PATCH /v9/projects/<專案>`，內容 `{"ssoProtection": null}`）。
+3. 給醫師的連結：`https://你的網域/ddx?k=你的通行碼`，例如 `https://doubt-ddx.vercel.app/ddx?k=...`。
 
 醫師用這個連結打開一次後，那台裝置會記住通行碼，網址上的通行碼也會自動消失。
 
