@@ -583,14 +583,21 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
   // The shared link carries the access code as ?k=...; it is kept on this device and removed from the address bar.
   const KEY_STORE = "ddx-access-key";
   let accessKey = "";
+  function rememberKey(k) {
+    try { localStorage.setItem(KEY_STORE, k); return localStorage.getItem(KEY_STORE) === k; } catch (_) { return false; }
+  }
   try {
     const url = new URL(location.href);
     const fromLink = (url.searchParams.get("k") || "").trim();
     if (fromLink) {
       accessKey = fromLink;
-      try { localStorage.setItem(KEY_STORE, fromLink); } catch (_) { /* private mode: keep it for this visit only */ }
-      url.searchParams.delete("k");
-      history.replaceState(null, "", url.pathname + url.search + url.hash);
+      // Drop the code from the address bar only once this device has really kept it.
+      // Some in-app browsers (LINE, Facebook) do not keep storage; there the link stays as is
+      // so reopening or bookmarking it still works.
+      if (rememberKey(fromLink)) {
+        url.searchParams.delete("k");
+        history.replaceState(null, "", url.pathname + url.search + url.hash);
+      }
     } else {
       try { accessKey = localStorage.getItem(KEY_STORE) || ""; } catch (_) { accessKey = ""; }
     }
@@ -599,10 +606,11 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
   let blockedKind = accessKey ? "" : "nokey";
   const DIAG = {
     nokey: { title: "這個連結少了通行碼", steps: [
-      "請向分享連結給你的人索取完整連結（網址最後會有 ?k= 開頭的一串字）。",
-      "用完整連結打開一次後，這台裝置就會記住，之後直接打開網址就能用。"] },
+      "在下面輸入通行碼（或貼上完整連結），按「使用」。",
+      "沒有通行碼的話，請向分享連結給你的人索取完整連結（網址最後有 ?k= 開頭的一串字）。"] },
     badkey: { title: "通行碼不正確或已經更換", steps: [
-      "請向分享連結給你的人索取最新的完整連結。"] },
+      "在下面輸入最新的通行碼（或貼上最新的完整連結），按「使用」。",
+      "沒有的話，請向分享連結給你的人索取。"] },
     notready: { title: "網站還沒設定完成", steps: [
       "請告訴分享連結給你的人：網站的 API 金鑰或通行碼還沒設定好。"] },
   };
@@ -1060,9 +1068,30 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
   const isBlocked = () => sampleStatus === "unavailable" || sampleStatus === "blocked";
   function availPanel() {
     const d = DIAG[blockedKind] || DIAG.nokey;
+    const canEnter = blockedKind === "nokey" || blockedKind === "badkey" || !blockedKind;
     return h("div", { class: "notice notice-warn stack", style: "gap:8px" },
       h("strong", { text: "目前無法分析：" + d.title }),
-      h("ol", null, d.steps.map((x) => h("li", { text: x }))));
+      h("ol", null, d.steps.map((x) => h("li", { text: x }))),
+      canEnter ? keyEntry() : null);
+  }
+  // Lets someone who only has the bare address type the code, or paste the full link.
+  function keyEntry() {
+    const input = h("input", { type: "text", placeholder: "通行碼或完整連結", autocomplete: "off", autocapitalize: "off", spellcheck: "false", style: "flex:1;min-width:0" });
+    const use = () => {
+      let k = input.value.trim();
+      const m = k.match(/[?&]k=([^&#\s]+)/);
+      if (m) k = decodeURIComponent(m[1]);
+      if (!k) { input.focus(); return; }
+      accessKey = k;
+      rememberKey(k);
+      sampleStatus = "ready";
+      blockedKind = "";
+      renderAvailability();
+      renderReason();
+    };
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") use(); });
+    return h("div", { style: "display:flex;gap:8px;align-items:center" }, input,
+      h("button", { type: "button", class: "btn", onclick: use }, "使用"));
   }
   function renderAvailability() {
     const blocked = isBlocked();
