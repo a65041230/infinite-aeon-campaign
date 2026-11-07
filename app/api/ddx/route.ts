@@ -109,26 +109,31 @@ async function streamClaude(p: Provider, task: Task, prompt: string, signal: Abo
   // The SDK sends the key as a Bearer token, which OpenRouter also accepts.
   const anthropic = new Anthropic(p.base ? { apiKey: p.key, baseURL: p.base } : { apiKey: p.key });
   try {
-    const message = anthropic.beta.messages.stream(
-      {
-        model: p.model,
-        max_tokens: 32_000, // thinking at high effort counts toward this too
-        betas: ["server-side-fallback-2026-07-01"],
-        fallbacks: "default",
-        output_config: { effort: TASK_EFFORT[task] },
-        system: SYSTEM,
-        messages: [{ role: "user", content: prompt }],
-      },
-      { signal },
-    );
-    for await (const event of message) {
-      if (event.type === "content_block_start" && event.content_block.type === "fallback") {
-        send({ t: "reset" });
-      } else if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-        send({ t: "d", d: event.delta.text });
+    let final: { stop_reason: string | null; model: string };
+    if (p.base) {
+      final = await streamClaudeViaOpenRouter(anthropic, p.model, task, prompt, signal, send);
+    } else {
+      const message = anthropic.beta.messages.stream(
+        {
+          model: p.model,
+          max_tokens: 32_000, // thinking at high effort counts toward this too
+          betas: ["server-side-fallback-2026-07-01"],
+          fallbacks: "default",
+          output_config: { effort: TASK_EFFORT[task] },
+          system: SYSTEM,
+          messages: [{ role: "user", content: prompt }],
+        },
+        { signal },
+      );
+      for await (const event of message) {
+        if (event.type === "content_block_start" && event.content_block.type === "fallback") {
+          send({ t: "reset" });
+        } else if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+          send({ t: "d", d: event.delta.text });
+        }
       }
+      final = await message.finalMessage();
     }
-    const final = await message.finalMessage();
     if (final.stop_reason === "refusal") send({ t: "error", error: "refused" });
     else send({ t: "done", model: final.model, truncated: final.stop_reason === "max_tokens" });
   } catch (err) {
@@ -138,6 +143,53 @@ async function streamClaude(p: Provider, task: Task, prompt: string, signal: Abo
       console.error(`[ddx] Claude ${status ?? "network"} error: ${String(err).slice(0, 300)}`);
     }
     send({ t: "error", error: code });
+  }
+}
+
+// OpenRouter's Messages-compatible endpoint rejects Anthropic beta parameters,
+// so this route has no refusal fallbacks. Should it also reject the effort
+// setting, the request is retried once at the model's default effort.
+async function streamClaudeViaOpenRouter(
+  anthropic: Anthropic,
+  model: string,
+  task: Task,
+  prompt: string,
+  signal: AbortSignal,
+  send: Send,
+): Promise<Anthropic.Message> {
+  const request = {
+    model,
+    max_tokens: 32_000,
+    system: SYSTEM,
+    messages: [{ role: "user" as const, content: prompt }],
+  };
+  try {
+    return await pipeClaude(anthropic.messages.stream({ ...request, output_config: { effort: TASK_EFFORT[task] } }, { signal }), send);
+  } catch (err) {
+    if (!(err instanceof NothingSentError) || !(err.cause instanceof Anthropic.BadRequestError)) throw err instanceof NothingSentError ? err.cause : err;
+    console.error(`[ddx] OpenRouter rejected the effort setting; retrying without it: ${String(err.cause).slice(0, 200)}`);
+    return await pipeClaude(anthropic.messages.stream(request, { signal }), send).catch((e) => {
+      throw e instanceof NothingSentError ? e.cause : e;
+    });
+  }
+}
+
+// Marks a failure that happened before any text reached the visitor, so a
+// retry cannot duplicate output.
+class NothingSentError extends Error {}
+
+async function pipeClaude(message: ReturnType<Anthropic["messages"]["stream"]>, send: Send): Promise<Anthropic.Message> {
+  let sent = false;
+  try {
+    for await (const event of message) {
+      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+        sent = true;
+        send({ t: "d", d: event.delta.text });
+      }
+    }
+    return await message.finalMessage();
+  } catch (err) {
+    throw sent ? err : new NothingSentError("request failed before output", { cause: err });
   }
 }
 
