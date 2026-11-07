@@ -21,10 +21,17 @@ const SYSTEM =
   "只處理臨床推理、反方審查與醫病溝通的請求，並嚴格依照使用者訊息指定的 JSON 格式回覆。";
 
 type Provider = { name: "anthropic" | "deepseek"; key: string; model: string };
+
+// Tolerate common paste slips in the dashboard: surrounding spaces or quotes,
+// or a "Bearer " prefix copied along with the key.
+function cleanKey(value: string | undefined): string {
+  return (value ?? "").trim().replace(/^["']|["']$/g, "").replace(/^Bearer\s+/i, "").trim();
+}
+
 function pickProvider(): Provider | null {
   const forced = (process.env.DDX_PROVIDER ?? "").trim().toLowerCase();
-  const anthropicKey = process.env.ANTHROPIC_API_KEY ?? "";
-  const deepseekKey = process.env.DEEPSEEK_API_KEY ?? "";
+  const anthropicKey = cleanKey(process.env.ANTHROPIC_API_KEY);
+  const deepseekKey = cleanKey(process.env.DEEPSEEK_API_KEY);
   const model = (process.env.DDX_MODEL ?? "").trim();
   const useDeepSeek = forced === "deepseek" || (forced !== "anthropic" && !anthropicKey && !!deepseekKey);
   if (useDeepSeek) return deepseekKey ? { name: "deepseek", key: deepseekKey, model: model || "deepseek-flash" } : null;
@@ -97,7 +104,12 @@ async function streamClaude(p: Provider, task: Task, prompt: string, signal: Abo
     if (final.stop_reason === "refusal") send({ t: "error", error: "refused" });
     else send({ t: "done", model: final.model, truncated: final.stop_reason === "max_tokens" });
   } catch (err) {
-    send({ t: "error", error: claudeErrorCode(err) });
+    const code = claudeErrorCode(err);
+    if (code !== "cancelled") {
+      const status = err instanceof Anthropic.APIError ? err.status : undefined;
+      console.error(`[ddx] Claude ${status ?? "network"} error: ${String(err).slice(0, 300)}`);
+    }
+    send({ t: "error", error: code });
   }
 }
 
@@ -131,12 +143,16 @@ async function streamDeepSeek(p: Provider, prompt: string, signal: AbortSignal, 
   }
   if (!res.ok || !res.body) {
     const s = res.status;
+    // DeepSeek's error body names the cause (bad key, unknown model, no
+    // balance). Log it for the site owner; the visitor only sees the code.
+    const detail = await res.text().catch(() => "");
+    console.error(`[ddx] DeepSeek HTTP ${s}: ${detail.slice(0, 300)}`);
     const code =
       s === 401 || s === 403 ? "not_configured" :
       s === 402 ? "no_credit" :
       s === 429 ? "rate_limited" :
       s === 400 || s === 422 ? "invalid_request" : "upstream_error";
-    send({ t: "error", error: code });
+    send({ t: "error", error: code, status: s });
     return;
   }
   const reader = res.body.getReader();
