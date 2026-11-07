@@ -19,7 +19,8 @@ type Send = (event: Record<string, unknown>) => void;
 
 const SYSTEM =
   "這是給台灣執業醫師使用的臨床推理輔助工具的後端，使用者是醫師本人。" +
-  "只處理臨床推理、反方審查與醫病溝通的請求，並嚴格依照使用者訊息指定的 JSON 格式回覆。";
+  "只處理臨床推理、反方審查與醫病溝通的請求，並嚴格依照使用者訊息指定的 JSON 格式回覆。" +
+  "所有內容一律使用台灣慣用的繁體中文與醫學用語，不要使用簡體字。";
 
 // "deepseek" covers any OpenAI-style Chat Completions endpoint: DeepSeek's own
 // API, or OpenRouter when the key is an OpenRouter key (sk-or-…).
