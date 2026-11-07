@@ -32,7 +32,7 @@ Vercel 專案 → **Settings → Environment Variables**，在 **Production** �
 | `DDX_ACCESS_KEY` | 自己決定的通行碼，例如 20 個英數字。要發給多位醫師、之後想單獨停用時，用逗號分隔多組 |
 | `DDX_PUBLIC`（選填） | 設 `1` 就不用通行碼，任何知道網址的人都能用。花費只剩 API 帳戶的上限在保護；要恢復通行碼就刪掉它再重新部署 |
 | `DDX_PROVIDER`（選填） | 兩把金鑰都填時指定用哪家：`anthropic` 或 `deepseek` |
-| `DDX_MODEL`（選填） | Claude 想省一半費用可設 `claude-sonnet-5-5`；DeepSeek 可試 `deepseek-v4-pro` |
+| `DDX_MODEL`（選填） | Claude 想省一半費用可設 `claude-sonnet-5-5`；DeepSeek 可試 `deepseek-v4-pro`。金鑰是 OpenRouter 的（`sk-or-` 開頭）時，設 `anthropic/claude-opus-5.5` 就改用 Claude（經 OpenRouter，沒有拒答時的自動備援） |
 
 還沒接 Vercel 的話：vercel.com → **Add New → Project** → 匯入這個 GitHub repo → Deploy。
 
