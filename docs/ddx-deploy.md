@@ -1,6 +1,6 @@
 # Doubt-Driven 鑑別工作台：網站版上線步驟
 
-網站版讓醫師**不用 Claude 帳號**，打開連結就能用。分析由網站後端用你的 Anthropic API 金鑰處理，費用算在你的 API 帳戶。
+網站版讓醫師**不用 Claude 帳號**，打開連結就能用。分析由網站後端用你設定的 AI 金鑰（Claude 或 DeepSeek）處理，費用算在你的 API 帳戶。
 
 - 網頁：`public/ddx/index.html`（網址 `/ddx`）
 - 後端：`app/api/ddx/route.ts`（Edge runtime，串流回傳，最長約 5 分鐘）
@@ -8,9 +8,18 @@
 
 ## 1. 取得 API 金鑰並設定花費上限
 
-1. 到 console.anthropic.com 登入，在 **Billing** 儲值。
+兩家擇一即可。
+
+**Claude（建議）**
+
+1. 到 platform.claude.com（原 console.anthropic.com）登入，在 **Billing** 儲值。
 2. 在 **API Keys** 建立一把金鑰（只會顯示一次，先複製下來）。
 3. 在 workspace 的 **Limits** 設定每月花費上限，避免連結外流時被大量使用。
+
+**DeepSeek**
+
+1. 到 platform.deepseek.com 登入，確認帳戶還有餘額（預付制，餘額用完就停，不會超支）。
+2. 在 **API Keys** 建立一把金鑰（只會顯示一次，先複製下來）。
 
 ## 2. 在 Vercel 設定環境變數
 
@@ -28,9 +37,22 @@ Vercel 專案 → **Settings → Environment Variables**，在 **Production** �
 
 ## 3. 部署並把連結給醫師
 
-1. 把這個分支合併到 main（Production 部署才會用到上面的環境變數；Preview 部署預設需要 Vercel 登入，醫師打不開）。
-2. 設定或修改環境變數後，到 **Deployments** 對最新一筆按 **Redeploy**。
-3. 給醫師的連結：`https://你的網域/ddx?k=你的通行碼`
+**用 Vercel CLI 部署成獨立專案（不影響既有網站）**
+
+```bash
+vercel link --yes --project doubt-ddx   # 建立並連結新專案
+vercel env add DDX_ACCESS_KEY production
+vercel deploy --prod --yes
+```
+
+權杖在 vercel.com/account/settings/tokens 建立。在 Claude 雲端工作階段裡，權杖存在環境的 Network secrets（主機 `api.vercel.com`）；CLI 的 `--token` 填任意不含 `-` 的字串，代理會換成真的權杖。專案建立後，到它的 **Settings → Environment Variables** 加上 AI 金鑰，再重新部署。
+
+**或在 Vercel 網頁操作**：把這個分支合併到 main 再部署（Preview 部署預設需要 Vercel 登入，醫師打不開，要用 Production）。
+
+之後：
+
+1. 設定或修改環境變數後，到 **Deployments** 對最新一筆按 **Redeploy**（或再跑一次 `vercel deploy --prod`）。
+2. 給醫師的連結：`https://你的網域/ddx?k=你的通行碼`。用專案的正式網域（例如 `doubt-ddx.vercel.app`），不要用每次部署產生的那串網址，那串預設也要 Vercel 登入。
 
 醫師用這個連結打開一次後，那台裝置會記住通行碼，網址上的通行碼也會自動消失。
 
@@ -46,7 +68,7 @@ Vercel 專案 → **Settings → Environment Variables**，在 **Production** �
 - 一次臨床推理（含反方審查）：約 US$0.2–0.4（Opus 5.5）
 - 一次溝通建議：約 US$0.05–0.1
 
-實際依病例長度與思考量而定，以 Console 的用量報表為準。
+實際依病例長度與思考量而定，以 Claude Console 的用量報表為準。DeepSeek 便宜很多，價格以 platform.deepseek.com 公告為準。
 
 ## 用 DeepSeek 要注意
 
@@ -55,6 +77,6 @@ Vercel 專案 → **Settings → Environment Variables**，在 **Production** �
 
 ## 隱私與責任
 
-- 後端不記錄、不保存病例內容；請求只轉送到 Anthropic API。
+- 後端不記錄、不保存病例內容；請求只轉送到你設定的 AI 服務（Anthropic 或 DeepSeek）。
 - 網站由你營運，等於你在提供處理健康資料的服務：請提醒使用者只輸入去識別化資料，並遵守個資法與醫療機構規定。
 - 內容僅供醫師參考；若要對外推廣成診斷用產品，可能落入食藥署醫療器材軟體的管理範圍。
