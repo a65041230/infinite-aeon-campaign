@@ -156,6 +156,7 @@ legend { font-weight: 500; font-size: 14px; padding: 0; margin-bottom: 6px; }
 .so-k { font-family: var(--font-mono); font-weight: 600; color: var(--accent); margin-right: 6px; }
 
 .dx-list { display: flex; flex-direction: column; gap: 10px; }
+.dx-group { font-weight: 700; font-size: 14px; margin: 14px 0 6px; }
 .dx { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; background: var(--surface); min-width: 0; }
 .dx[data-closed="true"] { background: var(--surface-2); }
 .dx[data-closed="true"] .dx-name { color: var(--muted); }
@@ -913,16 +914,19 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       "【推理規則】",
       "1. 只使用下面病例中有的資料，不要補寫病史、數值或檢查結果。資料不足的地方列入 data_gaps。",
       "2. 先找紅旗：需要立即處置、轉急診或不能等的狀況列在 red_flags；沒有就給空陣列。",
-      "3. 鑑別診斷同時涵蓋「最可能」與「必須排除」的診斷，共 3 到 7 個。「必須排除」指機率不一定高、但漏掉會危及病人的診斷（cant_miss 設為 true）。可能性只用「高」「中」「低」，不要用百分比或分數。",
-      "4. 病史可靠度或對病人動機的疑慮，不能降低任何器質性診斷的可能性；它只決定哪些資料需要用客觀方式查證。",
-      "5. 必須排除的診斷只能用客觀證據排除，不能列為「擱置」。",
-      "6. 症狀無法收斂在單一器官系統時，在 cross_specialty 說明應考慮的跨科原因（自體免疫、內分泌、藥物或毒物、罕見疾病）與起手檢查；不需要就填 null。",
-      "7. 理學檢查、症狀與檢驗互相矛盾時，在 lab_paradox 優先考慮檢驗干擾、檢體問題或偽陰性，並說明如何驗證；沒有矛盾就填 null。",
-      "8. 狀態只用：待評估、檢查中、已排除、已確立、擱置。已排除的診斷，只有在新資料與排除證據矛盾時才能重新打開，並在 status_reason 說明。標示「醫師已修改」的狀態以醫師為準，不要更動。",
-      "9. 每一輪至少讓一個鑑別往前推進。若「連續沒有進展的輪數」已達 2，請在 escalation 具體建議升級方式（會診、轉診、住院觀察或安排追蹤）；其他情況需要升級時也可以填。",
-      "10. 劑量、診斷標準、藥物交互作用等醫學事實，沒有十足把握就列入 verify，並附英文 PubMed 搜尋關鍵字。不要捏造文獻、指引名稱、年份或網址。",
-      "11. 台灣情境：可能是法定傳染病時提醒通報與送驗；涉及管制藥品時提醒查健保雲端藥歷；若提到 ICD-10 代碼，註明需依健保 2023 年版核對。這些放在 taiwan_notes。",
-      "12. 使用繁體中文，診斷名稱可附英文。內容精簡，每個欄位一兩句話即可。",
+      "3. 先做器官系統掃描：依神經、心血管、呼吸、代謝與內分泌、感染、腸胃與腹部、泌尿與婦產、藥物與毒物、眼耳鼻喉，逐一想過哪些原因會造成這個表現、而且漏掉會危及病人。症狀所在的器官不一定是病因，例如上腹痛可能是心肌梗塞、頭痛可能是一氧化碳中毒。這一步在心裡做，不用寫出來。",
+      "4. 危險因子要對應到所有相關器官：高血壓、糖尿病、抽菸、高血脂、心房顫動、高齡等血管危險因子，要同時考慮心臟、腦、主動脈與腸繫膜等所有血管床的急症；免疫低下要考慮非典型或嚴重感染；有懷孕可能要考慮婦產急症。",
+      "5. 鑑別診斷同時涵蓋「最可能」與「必須排除」的診斷，共 4 到 8 個。「必須排除」指機率不一定高、但漏掉會危及病人的診斷（cant_miss 設為 true），不能因為機率低就省略。可能性只用「高」「中」「低」，不要用百分比或分數。",
+      "6. 每個必須排除的診斷，next_step 都要寫出能區分或排除它的具體床邊檢查、檢驗或影像，不要只寫「神經學檢查」「心臟評估」這類籠統說法（例如寫「每 15 到 30 分鐘重做 12 導程心電圖」）。這些步驟在 next_steps 裡排在前面。",
+      "7. 病史可靠度或對病人動機的疑慮，不能降低任何器質性診斷的可能性；它只決定哪些資料需要用客觀方式查證。",
+      "8. 必須排除的診斷只能用客觀證據排除，不能列為「擱置」。",
+      "9. 症狀無法收斂在單一器官系統時，在 cross_specialty 說明應考慮的跨科原因（自體免疫、內分泌、藥物或毒物、罕見疾病）與起手檢查；不需要就填 null。",
+      "10. 理學檢查、症狀與檢驗互相矛盾時，在 lab_paradox 優先考慮檢驗干擾、檢體問題或偽陰性，並說明如何驗證；沒有矛盾就填 null。",
+      "11. 狀態只用：待評估、檢查中、已排除、已確立、擱置。已排除的診斷，只有在新資料與排除證據矛盾時才能重新打開，並在 status_reason 說明。標示「醫師已修改」的狀態以醫師為準，不要更動。",
+      "12. 每一輪至少讓一個鑑別往前推進。若「連續沒有進展的輪數」已達 2，請在 escalation 具體建議升級方式（會診、轉診、住院觀察或安排追蹤）；其他情況需要升級時也可以填。",
+      "13. 劑量、診斷標準、藥物交互作用等醫學事實，沒有十足把握就列入 verify，並附英文 PubMed 搜尋關鍵字。不要捏造文獻、指引名稱、年份或網址。",
+      "14. 台灣情境：可能是法定傳染病時提醒通報與送驗；涉及管制藥品時提醒查健保雲端藥歷；若提到 ICD-10 代碼，註明需依健保 2023 年版核對。這些放在 taiwan_notes。",
+      "15. 使用繁體中文，診斷名稱可附英文。內容精簡，每個欄位一兩句話即可。",
       "",
       "【輸出格式】",
       "只回覆一個 JSON 物件，不要任何其他文字。欄位如下：",
@@ -960,13 +964,17 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     return [
       "你是資深主治醫師，負責對下面這份鑑別診斷做反方審查，專門找出可能的錯誤。使用這個工具的是醫師本人。",
       "",
+      "【審查方法】",
+      "先不要看下面的分析：只根據病例資料，依神經、心血管、呼吸、代謝與內分泌、感染、腸胃與腹部、泌尿與婦產、藥物與毒物、眼耳鼻喉逐一想過，自己列出必須排除的診斷，並把危險因子對應到所有相關器官（例如血管危險因子要想到心、腦、主動脈、腸）。再拿這份清單對照分析，找出被漏掉、或該標必須排除卻沒標的診斷。這一步在心裡做，不用寫出來。",
+      "",
       "【審查重點】",
       "1. 錨定與過早收斂：如果最可能的診斷是錯的，最可能錯在哪裡？",
-      "2. 是否漏掉必須排除的診斷。",
+      "2. 是否漏掉必須排除的診斷，或該標必須排除卻沒標。",
       "3. 是否漏掉跨科、罕見疾病、藥物或毒物造成的原因。",
       "4. 理學檢查與檢驗的矛盾、檢驗干擾是否被忽略。",
       "5. 是否因為病史可靠度或動機疑慮而低估器質性疾病（診斷遮蔽）。",
       "6. 是否有證據不足卻給了高可能性的過度推論。",
+      "7. 每個必須排除的診斷，是否都有能區分或排除它的具體步驟，而且排在前面。",
       "",
       "【規則】",
       "只依據病例資料，不要捏造。找不到問題就如實說找不到，不要為了挑錯而挑錯。missed_differentials 只列真的值得加入的診斷，最多 4 個，且不要重複分析中已有的診斷。使用繁體中文。",
@@ -1236,7 +1244,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     if (r.analysis.summary) L.push(`總結：${r.analysis.summary}`);
     if (r.analysis.red_flags.length) L.push("紅旗：" + r.analysis.red_flags.map((f) => f.finding + (f.action ? `（${f.action}）` : "")).join("；"));
     L.push("鑑別診斷：");
-    for (const d of state.diffs) L.push(`- ${d.name}（可能性 ${d.likelihood}／${d.status}${d.cant_miss ? "／必須排除" : ""}）`);
+    for (const d of [...state.diffs.filter((x) => x.cant_miss), ...state.diffs.filter((x) => !x.cant_miss)]) L.push(`- ${d.name}（可能性 ${d.likelihood}／${d.status}${d.cant_miss ? "／必須排除" : ""}）`);
     if (r.analysis.next_steps.length) { L.push("下一步："); r.analysis.next_steps.forEach((s, i) => L.push(`${i + 1}. [${s.type}] ${s.item}`)); }
     if (r.analysis.data_gaps.length) L.push("資料缺口：" + r.analysis.data_gaps.join("；"));
     if (r.critic) L.push(`反方審查：${r.critic.verdict}。${r.critic.biggest_risk}${r.critic.key_question ? " 關鍵問題：" + r.critic.key_question : ""}`);
@@ -1358,6 +1366,8 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
 
   function renderRound(r) {
     const a = r.analysis;
+    const mustRule = state.diffs.filter((d) => d.cant_miss);
+    const others = state.diffs.filter((d) => !d.cant_miss);
     return [
       h("section", { class: "panel" },
         h("div", { class: "round-head" },
@@ -1374,8 +1384,11 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
           h("div", null, h("p", null, h("span", { class: "so-k", text: "S" }), "病人陳述"), list(a.problems.subjective)),
           h("div", null, h("p", null, h("span", { class: "so-k", text: "O" }), "客觀資料"), list(a.problems.objective)))) : null,
       h("section", null, h("p", { class: "section-k", text: "Differential · 鑑別診斷" }),
-        state.diffs.some((d) => d.cant_miss) ? h("p", { class: "hint", style: "margin-bottom:8px" }, h("b", { text: "必須排除" }), "：機率不一定高，但漏掉會危及病人，要先用檢查排除。") : null,
-        h("div", { class: "dx-list" }, state.diffs.map(renderDx))),
+        mustRule.length ? h("p", { class: "dx-group", text: "必須先排除" }) : null,
+        mustRule.length ? h("p", { class: "hint", style: "margin-bottom:8px" }, "機率不一定高，但漏掉會危及病人，要先用檢查排除。") : null,
+        mustRule.length ? h("div", { class: "dx-list" }, mustRule.map(renderDx)) : null,
+        mustRule.length && others.length ? h("p", { class: "dx-group", text: "其他鑑別診斷" }) : null,
+        others.length ? h("div", { class: "dx-list" }, others.map(renderDx)) : null),
       (a.cross_specialty || a.lab_paradox) ? h("section", { class: "stack" }, h("p", { class: "section-k", text: "Doubt check · 疑點檢查" }),
         a.lab_paradox ? h("div", { class: "notice notice-info" }, h("strong", { text: "檢驗矛盾：" }), a.lab_paradox) : null,
         a.cross_specialty ? h("div", { class: "notice notice-info" }, h("strong", { text: "跨科與罕見原因：" }), a.cross_specialty) : null) : null,
