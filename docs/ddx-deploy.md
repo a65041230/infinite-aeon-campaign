@@ -4,7 +4,7 @@
 
 - 網頁：`public/ddx/index.html`（網址 `/ddx`）
 - 後端：`app/api/ddx/route.ts`（Edge runtime，串流回傳，最長約 5 分鐘）
-- 模型：預設 `claude-opus-5-5`，推理與反方審查用 high effort，溝通建議用 medium；被安全機制拒答時自動改由備援模型回答（server-side fallback）
+- 模型：預設 Claude `claude-opus-5-5`（推理與反方審查用 high effort，溝通建議用 medium；被安全機制拒答時自動改由備援模型回答）。也可改用 DeepSeek `deepseek-flash`
 
 ## 1. 取得 API 金鑰並設定花費上限
 
@@ -18,9 +18,11 @@ Vercel 專案 → **Settings → Environment Variables**，在 **Production** �
 
 | 名稱 | 值 |
 |---|---|
-| `ANTHROPIC_API_KEY` | 第 1 步的金鑰 |
+| `ANTHROPIC_API_KEY` | Claude 的金鑰（platform.claude.com）。用 Claude 時填 |
+| `DEEPSEEK_API_KEY` | DeepSeek 的金鑰（platform.deepseek.com）。沒填 Claude 金鑰時改用 DeepSeek |
 | `DDX_ACCESS_KEY` | 自己決定的通行碼，例如 20 個英數字。要發給多位醫師、之後想單獨停用時，用逗號分隔多組 |
-| `DDX_MODEL`（選填） | 想省一半費用可設 `claude-sonnet-5-5`；不設就用 `claude-opus-5-5` |
+| `DDX_PROVIDER`（選填） | 兩把金鑰都填時指定用哪家：`anthropic` 或 `deepseek` |
+| `DDX_MODEL`（選填） | Claude 想省一半費用可設 `claude-sonnet-5-5`；DeepSeek 可試 `deepseek-v4-pro` |
 
 還沒接 Vercel 的話：vercel.com → **Add New → Project** → 匯入這個 GitHub repo → Deploy。
 
@@ -45,6 +47,11 @@ Vercel 專案 → **Settings → Environment Variables**，在 **Production** �
 - 一次溝通建議：約 US$0.05–0.1
 
 實際依病例長度與思考量而定，以 Console 的用量報表為準。
+
+## 用 DeepSeek 要注意
+
+- DeepSeek 的資料存放在中國的伺服器；台灣數位部已禁止公部門使用 DeepSeek。醫師若在公立醫院服務，院方規定可能也不允許。
+- 醫療推理的品質與安全性仍建議以 Claude 為主，DeepSeek 適合用額度先試用。
 
 ## 隱私與責任
 

@@ -375,7 +375,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       <h3>隱私</h3>
       <ul>
         <li>不要輸入姓名、身分證字號、病歷號、電話、地址或精確生日。頁面偵測到身分證字號、電話或電子郵件格式時會擋下送出。</li>
-        <li>病例會經由這個網站送到 Anthropic 的 Claude 處理。網站不記錄、不保存病例內容；關閉頁面後紀錄就消失，除非你自己存檔。</li>
+        <li>病例會經由這個網站送到網站設定的 AI 服務商處理（每一輪結果都會顯示使用的模型）。網站不記錄、不保存病例內容；關閉頁面後紀錄就消失，除非你自己存檔。</li>
         <li>病歷屬於個資法的特種個資，請同時遵守你服務機構的規定。</li>
       </ul>
       <h3>限制</h3>
@@ -626,6 +626,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       case "bad_key": return "通行碼不正確或已經更換，請向分享者索取最新的連結。";
       case "not_configured": return "網站還沒設定完成，請告訴分享者。";
       case "rate_limited": return "使用量暫時達到上限，請稍等一段時間再試。";
+      case "no_credit": return "網站的 AI 服務額度用完了，請告訴分享者儲值。";
       case "prompt_too_large": return "資料太長了，請精簡現病史或檢驗內容後再試。";
       case "refused": return "這段內容沒有被處理。請檢查輸入內容後再試。";
       case "invalid_json": return "回覆的格式不完整，請再試一次。";
