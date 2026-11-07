@@ -10,6 +10,7 @@ import Anthropic from "@anthropic-ai/sdk";
 // Edge runtime: the response starts streaming at once and may keep streaming
 // for several minutes, which a long clinical-reasoning answer can need.
 export const runtime = "edge";
+export const maxDuration = 300;
 
 const MAX_PROMPT_CHARS = 60_000;
 const TASK_EFFORT = { reason: "high", critic: "high", comm: "medium" } as const;
@@ -39,6 +40,11 @@ function pickProvider(): Provider | null {
   if (useDeepSeek) {
     if (!deepseekKey) return null;
     const openRouter = deepseekKey.startsWith("sk-or-");
+    // OpenRouter also serves the Anthropic Messages API, so Claude models
+    // (DDX_MODEL=anthropic/...) go through the official SDK instead.
+    if (openRouter && model.startsWith("anthropic/")) {
+      return { name: "anthropic", key: deepseekKey, model, base: "https://openrouter.ai/api", openRouter };
+    }
     const base = process.env.DEEPSEEK_BASE_URL || (openRouter ? "https://openrouter.ai/api/v1" : "https://api.deepseek.com");
     return {
       name: "deepseek",
@@ -100,12 +106,13 @@ function claudeErrorCode(err: unknown): string {
 }
 
 async function streamClaude(p: Provider, task: Task, prompt: string, signal: AbortSignal, send: Send) {
-  const anthropic = new Anthropic({ apiKey: p.key });
+  // The SDK sends the key as a Bearer token, which OpenRouter also accepts.
+  const anthropic = new Anthropic(p.base ? { apiKey: p.key, baseURL: p.base } : { apiKey: p.key });
   try {
     const message = anthropic.beta.messages.stream(
       {
         model: p.model,
-        max_tokens: 20_000,
+        max_tokens: 32_000, // thinking at high effort counts toward this too
         betas: ["server-side-fallback-2026-07-01"],
         fallbacks: "default",
         output_config: { effort: TASK_EFFORT[task] },
