@@ -247,7 +247,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     <div>
       <p class="eyebrow">Clinical reasoning · 醫師專用</p>
       <h1>Doubt-Driven 鑑別工作台</h1>
-      <p class="tagline">先找紅旗，再列最可能與不可錯過的診斷，最後由反方審查挑錯。每一輪都留下紀錄，有新資料就接著推進。</p>
+      <p class="tagline">先找紅旗，再列最可能與必須排除的診斷，最後由反方審查挑錯。每一輪都留下紀錄，有新資料就接著推進。</p>
     </div>
   </div>
   <div class="safety">
@@ -355,7 +355,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     <div class="panel guide stack">
       <h2>使用說明</h2>
       <h3>這是什麼</h3>
-      <p>給醫師用的鑑別診斷輔助工具，依照 Doubt-Driven 的思路設計：先找需要立即處理的紅旗，再同時列出最可能與不可錯過的診斷，檢查跨科、罕見疾病和檢驗互相矛盾的情況，最後由另一輪「反方審查」專門挑出錨定、遺漏和過度推論。</p>
+      <p>給醫師用的鑑別診斷輔助工具，依照 Doubt-Driven 的思路設計：先找需要立即處理的紅旗，再同時列出最可能與必須排除的診斷，檢查跨科、罕見疾病和檢驗互相矛盾的情況，最後由另一輪「反方審查」專門挑出錨定、遺漏和過度推論。</p>
       <h3>怎麼用</h3>
       <ol>
         <li>在「臨床推理」填入去識別化的病例，按「開始分析」。不需要 Claude 帳號。</li>
@@ -844,7 +844,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       const p = prevByKey.get(k);
       const merged = { ...d, id: p ? p.id : uid(), source: p ? p.source : source, doctorEdited: p ? p.doctorEdited : false, dropped: false, note: "" };
       if (p && p.doctorEdited) merged.status = p.status;
-      if (merged.cant_miss && merged.status === "擱置") { merged.status = "待評估"; merged.note = "不可錯過的診斷不能擱置，已改回待評估。"; }
+      if (merged.cant_miss && merged.status === "擱置") { merged.status = "待評估"; merged.note = "必須排除的診斷不能擱置，已改回待評估。"; }
       out.push(merged);
     }
     for (const p of prev) {
@@ -893,7 +893,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     const last = s.rounds[s.rounds.length - 1];
     const L = ["【上一輪鑑別狀態】"];
     for (const d of s.diffs) {
-      L.push(`- ${d.name}｜可能性：${d.likelihood}｜不可錯過：${d.cant_miss ? "是" : "否"}｜狀態：${d.status}` +
+      L.push(`- ${d.name}｜可能性：${d.likelihood}｜必須排除：${d.cant_miss ? "是" : "否"}｜狀態：${d.status}` +
         (d.status_reason ? `｜理由：${d.status_reason}` : "") +
         (d.doctorEdited ? "｜醫師已修改" : "") +
         (d.source === "反方審查" ? "｜由反方審查新增" : "") +
@@ -914,9 +914,9 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       "【推理規則】",
       "1. 只使用下面病例中有的資料，不要補寫病史、數值或檢查結果。資料不足的地方列入 data_gaps。",
       "2. 先找紅旗：需要立即處置、轉急診或不能等的狀況列在 red_flags；沒有就給空陣列。",
-      "3. 鑑別診斷同時涵蓋「最可能」與「不可錯過」的診斷，共 3 到 7 個。可能性只用「高」「中」「低」，不要用百分比或分數。",
+      "3. 鑑別診斷同時涵蓋「最可能」與「必須排除」的診斷，共 3 到 7 個。「必須排除」指機率不一定高、但漏掉會危及病人的診斷（cant_miss 設為 true）。可能性只用「高」「中」「低」，不要用百分比或分數。",
       "4. 病史可靠度或對病人動機的疑慮，不能降低任何器質性診斷的可能性；它只決定哪些資料需要用客觀方式查證。",
-      "5. 不可錯過的診斷只能用客觀證據排除，不能列為「擱置」。",
+      "5. 必須排除的診斷只能用客觀證據排除，不能列為「擱置」。",
       "6. 症狀無法收斂在單一器官系統時，在 cross_specialty 說明應考慮的跨科原因（自體免疫、內分泌、藥物或毒物、罕見疾病）與起手檢查；不需要就填 null。",
       "7. 理學檢查、症狀與檢驗互相矛盾時，在 lab_paradox 優先考慮檢驗干擾、檢體問題或偽陰性，並說明如何驗證；沒有矛盾就填 null。",
       "8. 狀態只用：待評估、檢查中、已排除、已確立、擱置。已排除的診斷，只有在新資料與排除證據矛盾時才能重新打開，並在 status_reason 說明。標示「醫師已修改」的狀態以醫師為準，不要更動。",
@@ -963,7 +963,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       "",
       "【審查重點】",
       "1. 錨定與過早收斂：如果最可能的診斷是錯的，最可能錯在哪裡？",
-      "2. 是否漏掉不可錯過的診斷。",
+      "2. 是否漏掉必須排除的診斷。",
       "3. 是否漏掉跨科、罕見疾病、藥物或毒物造成的原因。",
       "4. 理學檢查與檢驗的矛盾、檢驗干擾是否被忽略。",
       "5. 是否因為病史可靠度或動機疑慮而低估器質性疾病（診斷遮蔽）。",
@@ -1221,7 +1221,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     runReason("follow", text);
   }
   function onStatusChange(d, value) {
-    if (d.cant_miss && value === "擱置") { toast("不可錯過的診斷不能擱置，只能用客觀證據排除。"); renderReason(); return; }
+    if (d.cant_miss && value === "擱置") { toast("必須排除的診斷不能擱置，只能用客觀證據排除。"); renderReason(); return; }
     d.status = value;
     d.doctorEdited = true;
     d.note = "";
@@ -1237,7 +1237,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     if (r.analysis.summary) L.push(`總結：${r.analysis.summary}`);
     if (r.analysis.red_flags.length) L.push("紅旗：" + r.analysis.red_flags.map((f) => f.finding + (f.action ? `（${f.action}）` : "")).join("；"));
     L.push("鑑別診斷：");
-    for (const d of state.diffs) L.push(`- ${d.name}（可能性 ${d.likelihood}／${d.status}${d.cant_miss ? "／不可錯過" : ""}）`);
+    for (const d of state.diffs) L.push(`- ${d.name}（可能性 ${d.likelihood}／${d.status}${d.cant_miss ? "／必須排除" : ""}）`);
     if (r.analysis.next_steps.length) { L.push("下一步："); r.analysis.next_steps.forEach((s, i) => L.push(`${i + 1}. [${s.type}] ${s.item}`)); }
     if (r.analysis.data_gaps.length) L.push("資料缺口：" + r.analysis.data_gaps.join("；"));
     if (r.critic) L.push(`反方審查：${r.critic.verdict}。${r.critic.biggest_risk}${r.critic.key_question ? " 關鍵問題：" + r.critic.key_question : ""}`);
@@ -1317,7 +1317,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       h("div", { class: "dx-head" },
         h("h4", { class: "dx-name", text: d.name }),
         h("div", { class: "dx-tags" },
-          d.cant_miss ? h("span", { class: "chip chip-flag" }, "不可錯過") : null,
+          d.cant_miss ? h("span", { class: "chip chip-flag", title: "機率不一定高，但漏掉會危及病人，要先用檢查排除" }, "必須排除") : null,
           likelihoodChip(d.likelihood),
           h("span", { class: statusChipClass(d.status) }, d.status),
           d.source === "反方審查" ? h("span", { class: "chip" }, "反方審查新增") : null,
@@ -1332,7 +1332,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
         d.status_reason ? [h("dt", { text: "狀態理由" }), h("dd", { text: d.status_reason })] : null) : null,
       h("div", { class: "dx-foot" },
         h("label", { for: "status-" + d.id }, "狀態", sel),
-        warnDropped ? h("span", { class: "dx-warn", text: "不可錯過但本輪未提及，請確認是否已排除。" }) : d.note ? h("span", { class: "dx-warn", text: d.note }) : null));
+        warnDropped ? h("span", { class: "dx-warn", text: "必須排除但本輪未提及，請確認是否已排除。" }) : d.note ? h("span", { class: "dx-warn", text: d.note }) : null));
   }
 
   function renderCritic(r) {
@@ -1349,7 +1349,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       h("div", { class: "critic-head" }, h("h3", { text: "反方審查" }), h("span", { class: vClass }, c.verdict)),
       c.biggest_risk ? h("div", null, h("p", { class: "section-h", text: "最可能出錯的地方" }), h("p", { text: c.biggest_risk })) : null,
       c.missed_differentials.length ? h("div", null, h("p", { class: "section-h", text: "可能漏掉的診斷（已加入鑑別清單）" }),
-        h("ul", null, c.missed_differentials.map((m) => h("li", null, h("b", { text: m.name }), m.cant_miss ? "（不可錯過）" : "", m.why ? "：" + m.why : "")))) : null,
+        h("ul", null, c.missed_differentials.map((m) => h("li", null, h("b", { text: m.name }), m.cant_miss ? "（必須排除）" : "", m.why ? "：" + m.why : "")))) : null,
       c.overcalled.length ? h("div", null, h("p", { class: "section-h", text: "可能高估" }),
         h("ul", null, c.overcalled.map((m) => h("li", null, h("b", { text: m.name }), m.why ? "：" + m.why : "")))) : null,
       c.bias_flags.length ? h("div", null, h("p", { class: "section-h", text: "偏誤提醒" }),
@@ -1375,6 +1375,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
           h("div", null, h("p", null, h("span", { class: "so-k", text: "S" }), "病人陳述"), list(a.problems.subjective)),
           h("div", null, h("p", null, h("span", { class: "so-k", text: "O" }), "客觀資料"), list(a.problems.objective)))) : null,
       h("section", null, h("p", { class: "section-k", text: "Differential · 鑑別診斷" }),
+        state.diffs.some((d) => d.cant_miss) ? h("p", { class: "hint", style: "margin-bottom:8px" }, h("b", { text: "必須排除" }), "：機率不一定高，但漏掉會危及病人，要先用檢查排除。") : null,
         h("div", { class: "dx-list" }, state.diffs.map(renderDx))),
       (a.cross_specialty || a.lab_paradox) ? h("section", { class: "stack" }, h("p", { class: "section-k", text: "Doubt check · 疑點檢查" }),
         a.lab_paradox ? h("div", { class: "notice notice-info" }, h("strong", { text: "檢驗矛盾：" }), a.lab_paradox) : null,
@@ -1422,7 +1423,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     if (!state.rounds.length) {
       if (!progress) kids.push(h("div", { class: "panel empty" },
         h("h3", { text: "結果會出現在這裡" }),
-        h("p", { text: "輸入病例後按「開始分析」。你會看到紅旗、問題列表、鑑別診斷（含不可錯過的診斷）、下一步，以及反方審查。也可以用「開啟存檔」接續之前的病例。" }),
+        h("p", { text: "輸入病例後按「開始分析」。你會看到紅旗、問題列表、鑑別診斷（含必須排除的診斷）、下一步，以及反方審查。也可以用「開啟存檔」接續之前的病例。" }),
         h("div", { class: "actions", style: "margin-top:12px" },
           h("button", { type: "button", class: "btn", onclick: () => $("fileInput").click() }, "開啟存檔"),
           h("button", { type: "button", class: "btn btn-quiet", onclick: loadExample }, "載入範例"))));
