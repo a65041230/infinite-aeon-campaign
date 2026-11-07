@@ -51,3 +51,6 @@ __pycache__/
 .worktrees/
 .ds-task.md
 !.env.example
+
+# DDx exam-bank results (scripts/ddx-eval)
+ddx-eval-results/
