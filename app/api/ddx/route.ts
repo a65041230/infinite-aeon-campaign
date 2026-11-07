@@ -140,7 +140,7 @@ async function streamDeepSeek(p: Provider, prompt: string, signal: AbortSignal, 
   const body: Record<string, unknown> = {
     model: p.model,
     stream: true,
-    max_tokens: 8192,
+    max_tokens: 20_000, // room for long critiques; V4.1 Flash allows far more
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: SYSTEM },
