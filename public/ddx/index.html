@@ -181,6 +181,9 @@ legend { font-weight: 500; font-size: 14px; padding: 0; margin-bottom: 6px; }
 .step-why { color: var(--muted); font-size: 13.5px; }
 .gaps { display: flex; flex-direction: column; gap: 4px; }
 .verify li + li { margin-top: 6px; }
+.pm-hits { margin: 4px 0 0 1.1em; font-size: 13px; }
+.pm-hits li + li { margin-top: 3px; }
+.pm-note { margin-top: 2px; }
 
 .critic { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
 .critic-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; }
@@ -363,6 +366,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
         <li>分析大約需要一到三分鐘，完成後會自動進行反方審查。反方審查漏掉的診斷會自動加入鑑別清單。</li>
         <li>你可以直接修改每個診斷的狀態（例如改成「已排除」），下一輪會以你的判斷為準。</li>
         <li>有新的病史、檢查或檢驗結果時，在結果下方的「下一輪」輸入，按「更新分析」。連續兩輪沒有進展時，頁面會提醒你考慮會診、轉診或安排追蹤。</li>
+        <li>分析與反方審查會對照「主訴安全網」：25 個常見主訴各自必須排除的診斷，目前是醫師審核中的草稿（<a href="/ddx/safety-net.html" target="_blank" rel="noopener">查看清單</a>）。</li>
         <li>「複製摘要」可以貼到病歷草稿；「存檔」把整份紀錄存成檔案，下次用「開啟存檔」接著分析。</li>
       </ol>
       <h3>溝通與風險</h3>
@@ -381,7 +385,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       </ul>
       <h3>限制</h3>
       <ul>
-        <li>這個工具不會上網查資料。「需要查證」清單附有 PubMed 搜尋連結，請自己點開確認。</li>
+        <li>「需要查證」會自動附上 PubMed 找到的相關文獻（標題與連結），但不一定是最合適的文獻，請自己點開確認。查詢只送出英文關鍵字，不會送出病例內容。</li>
         <li>藥物劑量與交互作用請查院內藥物資料庫或仿單，不要只依賴這裡的內容。</li>
         <li>AI 可能出錯或遺漏，結果只能當作第二意見，最後的診斷與處置由你判斷。</li>
         <li>不需要 Claude 帳號，費用由網站提供者負擔。為了控制費用，短時間內大量送出會被暫時限制。</li>
@@ -397,6 +401,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
 <input type="file" id="fileInput" accept="application/json,.json" hidden>
 <div class="toast" id="toast" role="status" hidden></div>
 
+<script src="/ddx/safety-net.js"></script>
 <script>
 (() => {
   "use strict";
@@ -781,6 +786,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       verify: arr(raw.verify).map((v) => (v && typeof v === "object" ? { claim: str(v.claim), query: str(v.query) } : { claim: str(v), query: "" })).filter((v) => v.claim).slice(0, 8),
       taiwan_notes: strs(raw.taiwan_notes).slice(0, 6),
       escalation: str(raw.escalation),
+      safety_net_used: strs(raw.safety_net_used).slice(0, 6),
     };
   }
   function normCritic(raw) {
@@ -874,6 +880,33 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
   }
 
   // ---------- prompts ----------
+  // Chief-complaint safety net (public/ddx/safety-net.js, physician review pending). Entries whose
+  // keywords appear in the case are given in full, the rest by name only, so a missed keyword match
+  // still leaves every entry in view.
+  const SAFETY_NET = window.DDX_SAFETY_NET || null;
+  function caseText(s, extra) {
+    const c = s.case;
+    return [c.cc, c.hpi, c.pe, c.labs, c.thoughts, ...s.rounds.map((r) => r.newInfo), extra || ""].filter(Boolean).join(" ");
+  }
+  function safetyNetBlock(s, extra, forCritic) {
+    if (!SAFETY_NET) return "";
+    const text = caseText(s, extra);
+    const hits = SAFETY_NET.complaints.filter((c) => c.synonyms.some((w) => text.includes(w)));
+    const L = ["【主訴安全網（醫師審核中的草稿）】",
+      forCritic
+        ? "用這份清單檢查分析：本例符合的主訴中，與本例相關的必須排除診斷，分析是否都已列入並標成必須排除？漏掉的放進 missed_differentials。清單只是提醒，與本例無關的不要硬加。"
+        : "先判斷本例符合下列哪些主訴（可以多個，也可以都不符合），填在 safety_net_used。對符合的主訴，逐一考慮它的必須排除診斷：與本例相關的列入鑑別並標成必須排除，不相關的不用列，但要在心裡確認過。不要為了湊數把整張表搬進來，鑑別診斷總數仍不超過 8 個。",
+      "每個病例都要檢查的高風險條件：" + SAFETY_NET.general.map((g) => g.text).join(" ")];
+    for (const c of hits) {
+      L.push(`◆ ${c.name}（病例中出現：${c.synonyms.filter((w) => text.includes(w)).join("、")}）`);
+      for (const m of c.mustRuleOut) L.push(`  - ${m.dx}：${m.check}`);
+      if (c.highRisk.length) L.push(`  高風險情境：${c.highRisk.join("、")}`);
+    }
+    const rest = SAFETY_NET.complaints.filter((c) => !hits.includes(c));
+    L.push((hits.length ? "其他主訴" : "所有主訴") + "（只列名稱；本例若符合，也要比照處理）：");
+    for (const c of rest) L.push(`  ${c.name}：${c.mustRuleOut.map((m) => m.dx.replace(/\s*\([^)]*\)\s*$/, "")).join("、")}`);
+    return L.join("\n");
+  }
   function caseBlock(s) {
     const c = s.case;
     const L = [];
@@ -931,7 +964,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       "【輸出格式】",
       "只回覆一個 JSON 物件，不要任何其他文字。欄位如下：",
       JSON.stringify({
-        summary: "一句話總結目前的判斷與下一步重點",
+        safety_net_used: ["本例對照過的安全網主訴名稱"],
         red_flags: [{ finding: "紅旗發現", action: "建議的立即處置" }],
         problems: { subjective: ["病人陳述（S）"], objective: ["客觀資料（O）"] },
         differentials: [{ name: "診斷名稱", likelihood: "高", cant_miss: false, status: "待評估", supporting: ["支持的證據"], against: ["反對的證據"], next_step: "能區分這個診斷的下一步", would_change: "什麼結果會推翻或大幅改變這個判斷", status_reason: "狀態的理由" }],
@@ -942,6 +975,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
         verify: [{ claim: "需要查證的醫學事實", query: "英文 PubMed 搜尋關鍵字" }],
         taiwan_notes: [],
         escalation: null,
+        summary: "列完上面各欄之後，再用一句話總結目前的判斷與下一步重點",
       }, null, 2),
       "next_steps 依優先順序排列，type 只用：問診、理學檢查、檢驗、影像、處置、轉介、衛教。",
       "",
@@ -949,6 +983,8 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       caseBlock(s),
       prevBlock(s),
       newInfo ? `【本輪新增資料】\n${newInfo}` : "",
+      "",
+      safetyNetBlock(s, newInfo, false),
     ].filter((x) => x !== "").join("\n");
   }
   function buildCriticPrompt(s, round) {
@@ -993,6 +1029,8 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       "",
       "【病例資料】",
       caseBlock(s),
+      "",
+      safetyNetBlock(s, "", true),
       "",
       "【待審查的分析】",
       JSON.stringify(compact, null, 2),
@@ -1217,11 +1255,31 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     if (state.rounds.length && !state.isExample) { $("resetConfirm").hidden = false; return; }
     runReason("new", "");
   }
+  const FOLLOW_TIP = "（在每行「→」後面寫結果，陰性也要寫；沒做的可以留空，送出時會自動略過）";
+  // Turns the latest critique's key action and next steps into a fill-in list for the next round.
+  function fillFollowTemplate() {
+    const ta = $("followText");
+    const r = state && state.rounds[state.rounds.length - 1];
+    if (!ta || !r || !r.analysis) return;
+    const L = [FOLLOW_TIP];
+    if (r.critic && r.critic.key_question) L.push(`現在最該做的事：${r.critic.key_question} → `);
+    r.analysis.next_steps.slice(0, 8).forEach((x, i) => L.push(`${i + 1}. [${x.type}] ${x.item} → `));
+    L.push("其他新資料：");
+    const tpl = L.join("\n");
+    ta.value = ta.value.trim() ? ta.value.replace(/\s*$/, "") + "\n\n" + tpl : tpl;
+    ta.focus();
+  }
+  // Drops the fill-in tip and any item left unanswered, so only real findings are sent.
+  function cleanFollow(text) {
+    return text.split("\n")
+      .filter((line) => line.trim() !== FOLLOW_TIP && !/→\s*$/.test(line) && !/^其他新資料：\s*$/.test(line.trim()))
+      .join("\n").trim();
+  }
   function onFollow() {
     const ta = $("followText");
     const alertBox = $("followAlert");
     alertBox.hidden = true;
-    const text = ta.value.trim();
+    const text = cleanFollow(ta.value);
     if (!text) { showAlert(alertBox, "warn", "請先輸入新的資料。"); ta.focus(); return; }
     const hits = scanPII([["新的資料", text]]);
     if (hits.length) { showAlert(alertBox, "flag", "偵測到疑似可識別資料，請刪除後再送出：", hits.map((x) => `${x.type}（${x.masked}）`)); return; }
@@ -1384,6 +1442,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
           h("div", null, h("p", null, h("span", { class: "so-k", text: "S" }), "病人陳述"), list(a.problems.subjective)),
           h("div", null, h("p", null, h("span", { class: "so-k", text: "O" }), "客觀資料"), list(a.problems.objective)))) : null,
       h("section", null, h("p", { class: "section-k", text: "Differential · 鑑別診斷" }),
+        (a.safety_net_used || []).length ? h("p", { class: "hint", style: "margin-bottom:6px" }, "已對照主訴安全網：", a.safety_net_used.join("、"), "（", h("a", { href: "/ddx/safety-net.html", target: "_blank", rel: "noopener" }, "清單草稿"), "）") : null,
         mustRule.length ? h("p", { class: "dx-group", text: "必須先排除" }) : null,
         mustRule.length ? h("p", { class: "hint", style: "margin-bottom:8px" }, "機率不一定高，但漏掉會危及病人，要先用檢查排除。") : null,
         mustRule.length ? h("div", { class: "dx-list" }, mustRule.map(renderDx)) : null,
@@ -1397,12 +1456,46 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
           h("p", null, h("span", { class: "chip chip-accent" }, s.type), " ", s.item), s.why ? h("p", { class: "step-why", text: s.why }) : null))))) : null,
       a.data_gaps.length ? h("section", null, h("p", { class: "section-k", text: "Data gaps · 資料缺口" }), list(a.data_gaps)) : null,
       a.verify.length ? h("section", null, h("p", { class: "section-k", text: "To verify · 需要查證" }),
-        h("ul", { class: "verify" }, a.verify.map((v) => h("li", null, v.claim, v.query ? [" ", h("a", { href: "https://pubmed.ncbi.nlm.nih.gov/?term=" + encodeURIComponent(v.query), target: "_blank", rel: "noopener noreferrer" }, "在 PubMed 搜尋")] : null)))) : null,
+        h("ul", { class: "verify" }, a.verify.map((v) => h("li", null, v.claim, v.query ? [" ", h("a", { href: "https://pubmed.ncbi.nlm.nih.gov/?term=" + encodeURIComponent(v.query), target: "_blank", rel: "noopener noreferrer" }, "在 PubMed 搜尋"), pubmedList(v.query)] : null)))) : null,
       a.taiwan_notes.length ? h("section", null, h("p", { class: "section-k", text: "Taiwan · 台灣情境提醒" }), list(a.taiwan_notes)) : null,
       renderCritic(r),
     ];
   }
 
+  // PubMed titles for the "to verify" list. Only the AI-written English keywords go to /api/pubmed,
+  // one lookup at a time because NCBI allows a few requests a second.
+  const pubmedCache = new Map();
+  let pubmedQueue = Promise.resolve();
+  function pubmedFor(q) {
+    let entry = pubmedCache.get(q);
+    if (!entry) {
+      entry = { status: "loading", items: [] };
+      pubmedCache.set(q, entry);
+      pubmedQueue = pubmedQueue.then(async () => {
+        try {
+          const res = await fetch("/api/pubmed?q=" + encodeURIComponent(q));
+          const body = await res.json().catch(() => ({}));
+          entry.items = Array.isArray(body.items) ? body.items : [];
+          entry.status = res.ok ? "done" : "error";
+        } catch (_) {
+          entry.status = "error";
+        }
+        renderReason();
+        await new Promise((r) => setTimeout(r, 400));
+      });
+    }
+    return entry;
+  }
+  function pubmedList(q) {
+    if (!q) return null;
+    const e = pubmedFor(q);
+    if (e.status === "loading") return h("p", { class: "meta pm-note", text: "正在查 PubMed…" });
+    if (e.status === "error") return null;
+    if (!e.items.length) return h("p", { class: "meta pm-note", text: "PubMed 沒有找到相符的文獻，請換關鍵字自己查。" });
+    return h("ul", { class: "pm-hits" }, e.items.map((it) => h("li", null,
+      h("a", { href: `https://pubmed.ncbi.nlm.nih.gov/${encodeURIComponent(it.pmid)}/`, target: "_blank", rel: "noopener noreferrer" }, it.title || `PMID ${it.pmid}`),
+      h("span", { class: "meta" }, [it.journal, it.year].filter(Boolean).length ? `　${[it.journal, it.year].filter(Boolean).join(" · ")}` : ""))));
+  }
   function renderReason() {
     const out = $("reasonOut");
     if (!out || !state) return;
@@ -1461,11 +1554,12 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     if (!state.isExample) {
       kids.push(h("section", { class: "panel stack" },
         h("div", null, h("h3", { class: "panel-title", text: `下一輪（第 ${state.rounds.length + 1} 輪）` }),
-          h("p", { class: "panel-sub", text: "輸入新的病史、檢查或檢驗結果。你在上面修改的診斷狀態會一起帶入。" })),
+          h("p", { class: "panel-sub", text: "寫下做完「下一步」之後得到的結果：問診的回答、理學檢查發現、檢驗或影像結果，陰性發現也要寫。可以先從反方審查的「現在最該做的事」開始；按「帶入待回答清單」可以照著填。沒有新資料就先不用送出。你在上面修改的診斷狀態會一起帶入。" })),
         h("div", { class: "field" }, h("label", { for: "followText", text: "新的資料" }),
-          h("textarea", { id: "followText", class: "tall", placeholder: "例如：停用生物素 5 天後重驗 TSH 1.8 mIU/L、Free T4 1.2 ng/dL" })),
+          h("textarea", { id: "followText", class: "tall", placeholder: "例如：走路不穩、往左偏；水平眼振；指尖血糖 210；ECG 竇性心律，無 ST 變化；無胸痛、無腹痛" })),
         h("div", { id: "followAlert", hidden: true }),
         h("div", { class: "actions" },
+          h("button", { type: "button", class: "btn", onclick: fillFollowTemplate }, "帶入待回答清單"),
           h("button", { type: "button", class: "btn btn-primary", disabled: busy || sampleStatus === "unavailable" || sampleStatus === "blocked" ? true : null, onclick: onFollow }, "更新分析"))));
     }
 

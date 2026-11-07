@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>主訴安全網審閱</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&display=swap">
+<style>
+/* Read-only review page for the chief-complaint safety net. Visual tokens copied from /ddx/index.html. */
+:root {
+  --bg: #eef2f5;
+  --surface: #ffffff;
+  --surface-2: #f5f7f9;
+  --ink: #15202b;
+  --muted: #566573;
+  --line: #d3dbe2;
+  --accent: #1b5a8a;
+  --accent-ink: #ffffff;
+  --accent-soft: #e2edf6;
+  --flag: #b3261e;
+  --flag-soft: #fbe8e6;
+  --warn: #8f5400;
+  --warn-soft: #fcefd9;
+  --ok: #23704a;
+  --ok-soft: #e1f2e8;
+  --focus: #2f7fc1;
+  --font-display: "Noto Serif TC", "Songti TC", "PMingLiU", serif;
+  --font-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e141a; --surface: #151d25; --surface-2: #1b252f; --ink: #e4eaf0; --muted: #9aa8b5;
+    --line: #2b3844; --accent: #6eaee0; --accent-ink: #08131c; --accent-soft: #15293b;
+    --flag: #ff8b80; --flag-soft: #3a1714; --warn: #f2b453; --warn-soft: #33250c;
+    --ok: #73d19c; --ok-soft: #10301f; --focus: #8cc4f0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e141a; --surface: #151d25; --surface-2: #1b252f; --ink: #e4eaf0; --muted: #9aa8b5;
+  --line: #2b3844; --accent: #6eaee0; --accent-ink: #08131c; --accent-soft: #15293b;
+  --flag: #ff8b80; --flag-soft: #3a1714; --warn: #f2b453; --warn-soft: #33250c;
+  --ok: #73d19c; --ok-soft: #10301f; --focus: #8cc4f0;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.65; overflow-wrap: break-word; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+ul, ol { margin: 0; padding-left: 1.4em; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.wrap { max-width: 760px; margin: 0 auto; padding-left: 16px; padding-right: 16px; }
+
+/* Header */
+.masthead { background: var(--surface); border-bottom: 1px solid var(--line); }
+.masthead .wrap { padding-top: 22px; padding-bottom: 16px; }
+.masthead h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(22px, 5vw, 28px); line-height: 1.3; }
+.meta { color: var(--muted); font-size: 13.5px; margin-top: 6px; }
+.totals { margin-top: 4px; font-size: 14px; font-weight: 500; }
+
+main.wrap { padding-top: 20px; padding-bottom: 40px; }
+.block { margin-top: 24px; }
+.block > h2 { font-family: var(--font-display); font-weight: 600; font-size: 19px; margin-bottom: 10px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.intro { padding: 14px 16px; font-size: 14.5px; }
+
+/* Shared label chip */
+.label { display: inline-block; font-family: var(--font-mono); font-size: 12px; font-weight: 600; line-height: 1.6; color: var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 0 6px; white-space: nowrap; }
+
+/* General conditions */
+.general { list-style: none; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.general li { padding: 10px 14px; border-top: 1px solid var(--line); }
+.general li:first-child { border-top: 0; }
+.general .label { margin-right: 6px; }
+
+/* Table of contents */
+.toc-group { margin-top: 14px; }
+.toc-group:first-of-type { margin-top: 0; }
+.toc-sys { font-size: 13.5px; font-weight: 500; color: var(--muted); margin-bottom: 6px; }
+.toc-list { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 8px; }
+.toc-list a { display: inline-block; max-width: 100%; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); text-decoration: none; font-size: 14px; }
+.toc-list a:hover { border-color: var(--accent); }
+
+/* Complaint cards */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-top: 14px; min-width: 0; scroll-margin-top: 12px; }
+.card-title { font-family: var(--font-display); font-weight: 600; font-size: 18px; line-height: 1.4; }
+.tag { display: inline-block; vertical-align: middle; margin-left: 6px; font-family: var(--font-body); font-size: 12px; font-weight: 500; color: var(--muted); background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; }
+.row { margin-top: 8px; font-size: 14px; }
+.row-label { color: var(--muted); font-weight: 500; }
+.dx-list { list-style: none; padding: 0; margin-top: 10px; }
+.dx-list li { padding: 10px 0; border-top: 1px solid var(--line); }
+.dx-list li:first-child { border-top: 0; padding-top: 0; }
+.dx-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.dx-name { font-weight: 700; overflow-wrap: anywhere; }
+.check { margin-top: 3px; font-size: 13px; line-height: 1.6; color: var(--muted); overflow-wrap: anywhere; }
+
+/* Footer */
+.sources-block ul { font-size: 14px; }
+.sources-block li { margin-bottom: 4px; }
+.sources-block a { overflow-wrap: anywhere; }
+.disclaimer { margin-top: 16px; padding: 10px 12px; background: var(--warn-soft); color: var(--warn); border-radius: var(--radius); font-size: 14px; font-weight: 500; }
+
+@media print {
+  .toc { display: none; }
+  body { background: #fff; color: #000; }
+  .panel, .card, .general { border-color: #999; }
+  .card { break-inside: avoid; }
+  .tag, .label { background: none; border: 1px solid #999; }
+  .disclaimer { background: none; border: 1px solid #999; color: #000; }
+}
+</style>
+</head>
+<body>
+<header class="masthead">
+  <div class="wrap">
+    <h1>主訴安全網 · 審閱版</h1>
+    <p class="meta" id="meta"></p>
+    <p class="totals" id="totals"></p>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="block">
+    <div class="panel intro">
+      <p>這份清單會放進鑑別工作台的提示：分析與反方審查會對照病例的主訴，逐一考慮這裡列出的必須排除診斷。內容是 AI 依急診醫學教材的觀念用自己的話整理的草稿，尚未逐條比對原文，請醫師審核。回覆修改意見時請用編號，例如「C02-3 刪除」「C12 新增：某某診斷」「G05 修改成：……」。</p>
+    </div>
+  </section>
+
+  <section class="block" aria-labelledby="general-title">
+    <h2 id="general-title">每個病例都要檢查的高風險條件</h2>
+    <ul class="general" id="general"></ul>
+  </section>
+
+  <nav class="block toc" id="toc" aria-labelledby="toc-title">
+    <h2 id="toc-title">主訴目錄</h2>
+  </nav>
+
+  <section class="block" id="cards" aria-label="主訴清單"></section>
+
+  <footer class="block sources-block">
+    <h2>參考來源</h2>
+    <ul id="sources"></ul>
+    <p class="disclaimer">本頁內容僅供醫師審閱，不是臨床指引。</p>
+  </footer>
+</main>
+
+<script src="/ddx/safety-net.js"></script>
+<script>
+(function () {
+  "use strict";
+  var SEP = "、";
+  var data = window.DDX_SAFETY_NET;
+
+  function make(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined && text !== null) node.textContent = String(text);
+    return node;
+  }
+  function byId(id) { return document.getElementById(id); }
+
+  if (!data || !Array.isArray(data.complaints)) {
+    byId("meta").textContent = "無法載入主訴安全網資料，請確認 /ddx/safety-net.js 已正確載入。";
+    return;
+  }
+
+  var general = Array.isArray(data.general) ? data.general : [];
+  var complaints = data.complaints;
+  var sources = Array.isArray(data.sources) ? data.sources : [];
+
+  // Header meta and totals, all computed from the data.
+  byId("meta").textContent = [data.version, data.status, data.scope].filter(Boolean).join(" · ");
+  var dxTotal = 0;
+  complaints.forEach(function (c) { dxTotal += (c.mustRuleOut || []).length; });
+  byId("totals").textContent = "共 " + complaints.length + " 個主訴、" + dxTotal + " 個必須排除項目、" + general.length + " 條通用條件";
+
+  // General high-risk conditions.
+  var generalList = byId("general");
+  general.forEach(function (g) {
+    var li = make("li");
+    li.appendChild(make("span", "label", g.id));
+    li.appendChild(document.createTextNode(" " + g.text));
+    generalList.appendChild(li);
+  });
+
+  // Table of contents, grouped by system in first-appearance order.
+  var groupOrder = [];
+  var groups = new Map();
+  complaints.forEach(function (c) {
+    var key = c.system || "其他";
+    if (!groups.has(key)) { groups.set(key, []); groupOrder.push(key); }
+    groups.get(key).push(c);
+  });
+  var toc = byId("toc");
+  groupOrder.forEach(function (key) {
+    var group = make("div", "toc-group");
+    group.appendChild(make("h3", "toc-sys", key));
+    var ul = make("ul", "toc-list");
+    groups.get(key).forEach(function (c) {
+      var li = make("li");
+      var a = make("a", "", c.id + " " + c.name);
+      a.href = "#" + c.id;
+      li.appendChild(a);
+      ul.appendChild(li);
+    });
+    group.appendChild(ul);
+    toc.appendChild(group);
+  });
+
+  // One card per complaint.
+  var cardsRoot = byId("cards");
+  complaints.forEach(function (c) {
+    var card = make("section", "card");
+    card.id = c.id;
+
+    var title = make("h3", "card-title");
+    title.appendChild(document.createTextNode(c.id + " " + c.name));
+    title.appendChild(make("span", "tag", c.system));
+    card.appendChild(title);
+
+    var syn = make("p", "row");
+    syn.appendChild(make("span", "row-label", "同義詞："));
+    syn.appendChild(document.createTextNode((c.synonyms || []).join(SEP)));
+    card.appendChild(syn);
+
+    var ol = make("ol", "dx-list");
+    (c.mustRuleOut || []).forEach(function (m, i) {
+      var li = make("li");
+      var head = make("div", "dx-head");
+      head.appendChild(make("span", "label", c.id + "-" + (i + 1)));
+      head.appendChild(make("strong", "dx-name", m.dx));
+      li.appendChild(head);
+      li.appendChild(make("div", "check", m.check));
+      ol.appendChild(li);
+    });
+    card.appendChild(ol);
+
+    var hr = make("p", "row");
+    hr.appendChild(make("span", "row-label", "高風險情境："));
+    hr.appendChild(document.createTextNode((c.highRisk || []).join(SEP)));
+    card.appendChild(hr);
+
+    cardsRoot.appendChild(card);
+  });
+
+  // Sources, opened in a new tab.
+  var sourceList = byId("sources");
+  sources.forEach(function (s) {
+    var li = make("li");
+    if (typeof s.url === "string" && /^https?:\/\//.test(s.url)) {
+      var a = make("a", "", s.label);
+      a.href = s.url;
+      a.target = "_blank";
+      a.rel = "noopener";
+      li.appendChild(a);
+    } else {
+      li.appendChild(document.createTextNode(s.label));
+    }
+    sourceList.appendChild(li);
+  });
+})();
+</script>
+</body>
+</html>
