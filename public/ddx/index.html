@@ -1279,7 +1279,9 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
   // Drops the fill-in tip and any item left unanswered, so only real findings are sent.
   function cleanFollow(text) {
     return text.split("\n")
-      .filter((line) => line.trim() !== FOLLOW_TIP && !/→\s*$/.test(line) && !/^其他新資料：\s*$/.test(line.trim()))
+      .filter((line) => line.trim() !== FOLLOW_TIP && !/→\s*$/.test(line))
+      .map((line) => line.replace(/^\s*其他新資料：\s*/, ""))
+      .filter((line) => line.trim())
       .join("\n").trim();
   }
   function onFollow() {

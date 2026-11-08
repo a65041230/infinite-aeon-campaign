@@ -72,6 +72,12 @@ vercel deploy --prod --yes
 
 實際依病例長度與思考量而定，以 Claude Console 的用量報表為準。DeepSeek 便宜很多，價格以 platform.deepseek.com 公告為準。
 
+## 主訴安全網、PubMed 與考題庫
+
+- **主訴安全網**：`public/ddx/safety-net.js`，25 個成人主訴各自必須排除的診斷與床邊檢查，加上 11 條每個病例都要檢查的高風險條件。分析與反方審查都會對照；病例裡出現的主訴給完整內容，其他只給名稱。醫師審閱頁：`/ddx/safety-net.html`。目前是**醫師審核中的草稿**，改內容只要改這個檔案。
+- **PubMed**：`app/api/pubmed/route.ts` 用 AI 寫的英文關鍵字查 NCBI，「需要查證」底下列出前三篇文獻。不會送出病例內容。
+- **考題庫**：`scripts/ddx-eval/`，`cases.json` 放題目，`node scripts/ddx-eval/run.cjs --runs 2` 在正式網站上跑並計分（會花 API 額度），說明見該資料夾的 README。
+
 ## 用 DeepSeek 要注意
 
 - DeepSeek 的資料存放在中國的伺服器；台灣數位部已禁止公部門使用 DeepSeek。醫師若在公立醫院服務，院方規定可能也不允許。
