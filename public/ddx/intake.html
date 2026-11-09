@@ -294,9 +294,10 @@ footer { color: var(--muted); font-size: 13px; text-align: center; padding: 0 16
       "3. 不要推測診斷，不要寫理學檢查或檢驗。",
       "4. 用醫師習慣的簡潔寫法，但保留病人原話的重點。",
       "5. alerts 只放可能需要醫師優先處理的回答（例如新出現的神經症狀、出血、胸痛、意識改變、想傷害自己），最多 3 條；沒有就給空陣列。病史與一般症狀不要放進 alerts。",
+      "6. 如果有回答顯示病人可能需要立即處理（例如正在胸痛並冒冷汗或喘、突然一邊無力或說話不清楚、這輩子最痛的頭痛、意識不清、大量出血、想傷害自己），把 emergency 設為 true，並在 emergency_message 用一句口語請病人立刻告訴櫃台或護理人員；否則 emergency 設為 false，emergency_message 給空字串。",
       "",
       "【輸出格式】只回覆一個 JSON 物件，不要任何其他文字：",
-      JSON.stringify({ cc: "主訴，一句話", hpi: "現病史：依發作時間、誘發與緩解、性質、部位與轉移、嚴重度、時間型態寫成一段", positives: ["相關陽性"], negatives: ["病人明確說沒有的"], uncertain: ["病人不確定或沒有回答的"], pmh: "過去病史、用藥、過敏", alerts: ["需要醫師優先注意的回答"] }, null, 2),
+      JSON.stringify({ cc: "主訴，一句話", hpi: "現病史：依發作時間、誘發與緩解、性質、部位與轉移、嚴重度、時間型態寫成一段", positives: ["相關陽性"], negatives: ["病人明確說沒有的"], uncertain: ["病人不確定或沒有回答的"], pmh: "過去病史、用藥、過敏", alerts: ["需要醫師優先注意的回答"], emergency: false, emergency_message: "" }, null, 2),
       "",
       "【病人資料】",
       bgText(),
@@ -326,7 +327,7 @@ footer { color: var(--muted); font-size: 13px; text-align: center; padding: 0 16
   function strs(v) { return (Array.isArray(v) ? v : v ? [v] : []).map((x) => String(x).trim()).filter(Boolean); }
   function normSummary(d) {
     const bare = (v, label) => String(v || "").trim().replace(new RegExp("^(" + label + ")\\s*[：:]\\s*"), "");
-    return { cc: bare(d.cc, "主訴"), hpi: bare(d.hpi, "現病史"), positives: strs(d.positives), negatives: strs(d.negatives), uncertain: strs(d.uncertain), pmh: bare(d.pmh, "過去病史、用藥、過敏|過去病史"), alerts: strs(d.alerts).slice(0, 3) };
+    return { cc: bare(d.cc, "主訴"), hpi: bare(d.hpi, "現病史"), positives: strs(d.positives), negatives: strs(d.negatives), uncertain: strs(d.uncertain), pmh: bare(d.pmh, "過去病史、用藥、過敏|過去病史"), alerts: strs(d.alerts).slice(0, 3), emergency: d.emergency === true || d.emergency === "true" ? String(d.emergency_message || "").trim() || "你的狀況可能需要馬上處理。" : "" };
   }
 
   // ---------- flow ----------
@@ -352,6 +353,8 @@ footer { color: var(--muted); font-size: 13px; text-align: center; padding: 0 16
     S.done = true;
     setLoading("正在把你的回答整理給醫師…");
     try { S.summary = normSummary(await ask(summaryPrompt(), "intake_summary")); } catch (_) { S.summary = null; }
+    // the last round has no later round to stop it, so the summary may raise the alarm instead
+    if (!S.emergency && S.summary && S.summary.emergency) S.emergency = S.summary.emergency;
     setLoading("");
     renderDone();
   }
@@ -448,11 +451,17 @@ footer { color: var(--muted); font-size: 13px; text-align: center; padding: 0 16
     L.push("", "【原始問答】", qaText(), "", "（AI 整理，只包含病人的回答，請醫師自行確認）");
     return L.join("\n");
   }
+  // The urgent heading already says what to do, so keep only the reason the model gave.
+  function reasonOnly(m) {
+    const t = String(m || "").replace(/[，,]?\s*請(你|您)?(立刻|馬上|立即|趕快|儘快|盡快)?(告訴|通知|找|聯絡)(現場的)?(櫃台|櫃檯|護理人員|醫護人員|工作人員)((或|、)(櫃台|櫃檯|護理人員|醫護人員|工作人員))*[。！!]?/g, "").replace(/^[，,。！!\s]+|[，,\s]+$/g, "");
+    return t && !/[。！!？?]$/.test(t) ? t + "。" : t;
+  }
   function renderDone() {
     const msg = $("doneMsg");
     if (S.emergency) {
       msg.className = "card urgent big";
-      msg.replaceChildren(h("p", { text: "請立刻告訴櫃台或護理人員。" }), h("p", { style: "margin-top:8px;font-size:17px;font-weight:500", text: S.emergency }));
+      const why = reasonOnly(S.emergency);
+      msg.replaceChildren(h("p", { text: "請立刻告訴櫃台或護理人員。" }), ...(why ? [h("p", { style: "margin-top:8px;font-size:17px;font-weight:500", text: why })] : []));
     } else {
       msg.className = "card thanks";
       msg.replaceChildren(h("p", { style: "font-weight:700;font-size:19px", text: "問診完成，謝謝你！" }), h("p", { style: "margin-top:6px", text: "請在候診區稍候，看診時醫師會跟你說明。等待時如果覺得更不舒服，請隨時告訴櫃台。" }));
