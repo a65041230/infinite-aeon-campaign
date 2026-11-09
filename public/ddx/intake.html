@@ -143,7 +143,7 @@ footer { color: var(--muted); font-size: 13px; text-align: center; padding: 0 16
   const CC_TERMS = ["胸痛", "胸悶", "喘", "心悸", "頭痛", "頭暈", "昏倒", "肚子痛", "噁心想吐", "發燒", "背痛", "沒力氣", "體重變輕"];
   const HX_TERMS = ["高血壓", "糖尿病", "高血脂", "心臟病", "中風過", "腎臟病", "氣喘", "癌症", "吃抗凝血劑", "抽菸", "喝酒", "嚼檳榔", "可能懷孕"];
   // Words that should send a patient to the desk now. They only raise a reminder; the AI makes the call each round.
-  const URGENT = /(胸痛|胸口痛|胸口壓|喘不過氣|呼吸困難|一邊.{0,4}(無力|沒力|麻)|單側.{0,4}(無力|沒力|麻)|嘴歪|說話不清|口齒不清|講話不清|最痛的頭痛|頭痛得很厲害|劇烈頭痛|昏倒|失去意識|吐血|黑便|解血|大量出血|抽搐|意識不清|想自殺|不想活|傷害自己)/;
+  const URGENT = /(胸.{0,3}痛|胸口.{0,3}(壓|緊)|冒冷汗|喘不過氣|很喘|呼吸困難|一邊.{0,4}(無力|沒力|麻)|單側.{0,4}(無力|沒力|麻)|嘴歪|說話不清|口齒不清|講話不清|最痛的頭痛|頭痛得很厲害|劇烈頭痛|昏倒|失去意識|吐血|黑便|解血|大量出血|抽搐|意識不清|想自殺|不想活|傷害自己)/;
   const PII_RULES = [
     { name: "身分證字號", re: /\b[A-Z][1289]\d{8}\b|\b[A-Z][A-D]\d{8}\b/i },
     { name: "手機號碼", re: /(^|\D)09\d{2}[-\s]?\d{3}[-\s]?\d{3}(?!\d)/ },
@@ -293,6 +293,7 @@ footer { color: var(--muted); font-size: 13px; text-align: center; padding: 0 16
       "2. 回答「不確定」或「跳過」的放在 uncertain，不能當作沒有。",
       "3. 不要推測診斷，不要寫理學檢查或檢驗。",
       "4. 用醫師習慣的簡潔寫法，但保留病人原話的重點。",
+      "5. alerts 只放可能需要醫師優先處理的回答（例如新出現的神經症狀、出血、胸痛、意識改變、想傷害自己），最多 3 條；沒有就給空陣列。病史與一般症狀不要放進 alerts。",
       "",
       "【輸出格式】只回覆一個 JSON 物件，不要任何其他文字：",
       JSON.stringify({ cc: "主訴，一句話", hpi: "現病史：依發作時間、誘發與緩解、性質、部位與轉移、嚴重度、時間型態寫成一段", positives: ["相關陽性"], negatives: ["病人明確說沒有的"], uncertain: ["病人不確定或沒有回答的"], pmh: "過去病史、用藥、過敏", alerts: ["需要醫師優先注意的回答"] }, null, 2),
@@ -324,7 +325,8 @@ footer { color: var(--muted); font-size: 13px; text-align: center; padding: 0 16
   }
   function strs(v) { return (Array.isArray(v) ? v : v ? [v] : []).map((x) => String(x).trim()).filter(Boolean); }
   function normSummary(d) {
-    return { cc: String(d.cc || "").trim(), hpi: String(d.hpi || "").trim(), positives: strs(d.positives), negatives: strs(d.negatives), uncertain: strs(d.uncertain), pmh: String(d.pmh || "").trim(), alerts: strs(d.alerts) };
+    const bare = (v, label) => String(v || "").trim().replace(new RegExp("^(" + label + ")\\s*[：:]\\s*"), "");
+    return { cc: bare(d.cc, "主訴"), hpi: bare(d.hpi, "現病史"), positives: strs(d.positives), negatives: strs(d.negatives), uncertain: strs(d.uncertain), pmh: bare(d.pmh, "過去病史、用藥、過敏|過去病史"), alerts: strs(d.alerts).slice(0, 3) };
   }
 
   // ---------- flow ----------
@@ -471,7 +473,7 @@ footer { color: var(--muted); font-size: 13px; text-align: center; padding: 0 16
     if (s && s.negatives.length) parts.push("相關陰性：" + s.negatives.join("、"));
     if (s && s.uncertain.length) parts.push("病人不確定或未回答：" + s.uncertain.join("、"));
     parts.push("【病人預問診原始回答】\n" + qaText());
-    const rec = { v: 1, at: Date.now(), age: b.age, sex: b.sex, cc: (s && s.cc) || b.cc, hpi: parts.join("\n"), pmh: [b.hx, s && s.pmh].filter(Boolean).join("；"), emergency: S.emergency };
+    const rec = { v: 1, at: Date.now(), age: b.age, sex: b.sex, cc: (s && s.cc) || b.cc, hpi: parts.join("\n"), pmh: (s && s.pmh) || b.hx, emergency: S.emergency };
     try { localStorage.setItem(HANDOFF_KEY, JSON.stringify(rec)); }
     catch (_) { alert("這台裝置不能暫存資料，請改用「複製紀錄」，再貼到工作台。"); return; }
     S = fresh(); // the record now lives only in the hand-over slot

@@ -1456,10 +1456,11 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     renderReason();
     const when = new Date(rec.at).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false });
     box.className = rec.emergency ? "notice notice-flag" : "notice notice-info";
-    box.replaceChildren(
+    box.replaceChildren(...[
       h("strong", { text: `已帶入看診前問診（${when}）。` }),
       rec.emergency ? h("span", { text: ` 問診時有急症攔截：${rec.emergency}` }) : null,
-      " 請補上理學檢查、生命徵象與檢驗，確認已去識別化後按「開始分析」。");
+      " 請補上理學檢查、生命徵象與檢驗，確認已去識別化後按「開始分析」。",
+    ].filter(Boolean));
     box.hidden = false;
     box.scrollIntoView({ block: "center" });
   }
