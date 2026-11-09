@@ -174,7 +174,9 @@ legend { font-weight: 500; font-size: 14px; padding: 0; margin-bottom: 6px; }
 .q-item.taken { opacity: 0.7; }
 .q-item .btn { padding: 6px 12px; }
 .q-num { font-family: var(--font-mono); font-weight: 700; font-size: 16px; }
-.q-cc { flex: 1 1 180px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.q-break { flex-basis: 100%; height: 0; }
+.q-cc { flex: 1 1 120px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+a.btn { display: inline-block; text-decoration: none; }
 .q-done > summary { cursor: pointer; padding: 2px 0; }
 .q-qr { display: block; width: 220px; max-width: 100%; height: auto; background: #fff; border-radius: 8px; margin: 8px 0; }
 .q-url { font-family: var(--font-mono); font-size: 12.5px; word-break: break-all; margin-bottom: 8px; }
@@ -408,7 +410,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
         <li>分析大約需要一到三分鐘，完成後會自動進行反方審查。反方審查漏掉的診斷會自動加入鑑別清單。</li>
         <li>你可以直接修改每個診斷的狀態（例如改成「已排除」），下一輪會以你的判斷為準。</li>
         <li>有新的病史、檢查或檢驗結果時，在結果下方的「下一輪」輸入，按「更新分析」。連續兩輪沒有進展時，頁面會提醒你考慮會診、轉診或安排追蹤。</li>
-        <li>看診前可以讓病人用 <a href="/ddx/intake" target="_blank" rel="noopener">看診前問診</a> 自己回答問題：AI 會依主訴分幾組追問（不會告訴病人診斷，有急症徵兆會請病人立刻告訴櫃台），病人用「給病人的連結與 QR code」裡的連結填完，會拿到當天的號碼，病例欄位上方的「今日看診前問診」名單按「帶入」就會填進來（要輸入通行碼；紀錄 12 小時後自動刪除）。病人用一般連結時，在同一台裝置按「帶入醫師工作台」。</li>
+        <li>看診前可以讓病人用 <a href="/ddx/intake" target="_blank" rel="noopener">看診前問診</a> 自己回答問題：AI 會依主訴分幾組追問（不會告訴病人診斷，有急症徵兆會請病人立刻告訴櫃台），病人用「給病人的連結與 QR code」裡的連結填完，會拿到當天的號碼，病例欄位上方的「今日看診前問診」名單按「帶入」就會填進來（要輸入通行碼；名單只列出 12 小時內的紀錄，過期的會自動刪除）。病人用一般連結時，在同一台裝置按「帶入醫師工作台」。</li>
         <li>分析與反方審查會對照「主訴安全網」：26 個常見主訴各自必須排除的診斷，目前是醫師審核中的草稿（<a href="/ddx/safety-net.html" target="_blank" rel="noopener">查看清單</a>）。</li>
         <li>「複製摘要」可以貼到病歷草稿；「存檔」把整份紀錄存成檔案，下次用「開啟存檔」接著分析。</li>
       </ol>
@@ -1587,8 +1589,9 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       h("span", { class: "q-num", text: pad3(it.num) }),
       h("span", { class: "hint", text: clock(it.at) }),
       who ? h("span", { text: who }) : null,
-      h("span", { class: "q-cc", title: it.cc, text: it.cc }),
       it.urgent ? h("span", { class: "chip chip-flag", text: "急症攔截" }) : it.alerts ? h("span", { class: "chip chip-warn", text: "優先注意" }) : null,
+      h("span", { class: "q-break" }),
+      h("span", { class: "q-cc", title: it.cc, text: it.cc }),
       h("button", { type: "button", class: it.taken ? "btn" : "btn btn-primary", onclick: () => takeFromQueue(it) }, it.taken ? "再帶入" : "帶入"),
       h("button", { type: "button", class: "btn btn-quiet", "aria-label": `刪除 ${pad3(it.num)} 號`, onclick: () => deleteFromQueue(it) }, "刪除"));
   }
@@ -1598,7 +1601,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     try {
       const d = await queueCall({ action: "take", id: it.id });
       if (busy) return;
-      fillFromIntake(d.record, `${pad3(d.num)} 號的`);
+      fillFromIntake(d.record, ` ${pad3(d.num)} 號的`);
       it.taken = true;
       renderQueue();
     } catch (e) {
@@ -1624,7 +1627,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
         catch (_) { toast("無法複製，請手動選取網址"); }
       };
       body.replaceChildren(
-        h("p", { class: "hint", text: "把 QR code 印出來貼在候診區，或在櫃台的平板打開這個連結。病人填完會拿到今天的號碼，名單上就會出現。紀錄 12 小時後自動刪除。" }),
+        h("p", { class: "hint", text: "把 QR code 印出來貼在候診區，或在櫃台的平板打開這個連結。病人填完會拿到今天的號碼，名單上就會出現。名單只列出 12 小時內的紀錄，過期的會自動刪除。" }),
         h("img", { class: "q-qr", src: d.qr, alt: "病人用的看診前問診 QR code", width: "220", height: "220" }),
         h("p", { class: "q-url", text: d.url }),
         h("div", { style: "display:flex;gap:8px;flex-wrap:wrap" },

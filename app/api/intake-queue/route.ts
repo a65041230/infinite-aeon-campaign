@@ -6,8 +6,9 @@
 //   add records to that clinic's list;
 // - listing, opening and deleting records need the code itself (x-ddx-key).
 // Records are sealed with a key derived from DDX_QUEUE_SECRET and the code, so
-// the database alone does not reveal them, and are deleted 12 hours after they
-// arrive. Numbers restart every day, Taiwan time.
+// the database alone does not reveal them. After 12 hours they are no longer
+// shown and are deleted the next time anyone submits or opens a list.
+// Numbers restart every day, Taiwan time.
 import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import QRCode from "qrcode";
@@ -174,11 +175,15 @@ async function submit(sql: Sql, code: string, clinic: string, value: unknown): P
 
 async function list(sql: Sql, code: string, clinic: string): Promise<Response> {
   const day = taiwanDay();
-  const rows = (await sql`
-    SELECT id, num, taken_at, urgent, box FROM intake_queue
-    WHERE clinic = ${clinic} AND day = ${day}::date
-      AND created_at > now() - make_interval(hours => ${KEEP_HOURS})
-    ORDER BY num`) as { id: string; num: number; taken_at: unknown; urgent: boolean; box: string }[];
+  // Opening the list also clears expired records, so they do not wait for the next patient.
+  const [, found] = await sql.transaction([
+    sql`DELETE FROM intake_queue WHERE created_at < now() - make_interval(hours => ${KEEP_HOURS})`,
+    sql`SELECT id, num, taken_at, urgent, box FROM intake_queue
+        WHERE clinic = ${clinic} AND day = ${day}::date
+          AND created_at > now() - make_interval(hours => ${KEEP_HOURS})
+        ORDER BY num`,
+  ]);
+  const rows = found as { id: string; num: number; taken_at: unknown; urgent: boolean; box: string }[];
   const items = rows.flatMap((r) => {
     const rec = unseal(code, r.id, r.box);
     if (!rec) return [];
