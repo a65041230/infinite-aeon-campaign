@@ -74,6 +74,8 @@ button[aria-pressed="true"] { background: var(--accent); border-color: var(--acc
 @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
 .progress { font-size: 14px; color: var(--muted); margin-bottom: 6px; }
 .thanks { background: var(--ok-soft); color: var(--ok); }
+.number { text-align: center; }
+.qnum { font-size: 64px; font-weight: 800; letter-spacing: 0.08em; line-height: 1.1; margin: 6px 0; color: var(--accent); font-variant-numeric: tabular-nums; }
 .staff { border: 2px dashed var(--line); }
 .staff h2 { font-size: 17px; }
 .record { font-size: 14px; white-space: pre-wrap; background: var(--surface-2); border-radius: 10px; padding: 12px; max-height: 45vh; overflow: auto; margin-top: 10px; }
@@ -123,9 +125,10 @@ footer { color: var(--muted); font-size: 13px; text-align: center; padding: 0 16
 
   <section id="stepDone" hidden>
     <div class="card" id="doneMsg"></div>
+    <div class="card" id="queueBox" role="status" hidden></div>
     <div class="card staff">
       <h2>給醫護人員</h2>
-      <p class="lead" style="margin-bottom:0">按「帶入醫師工作台」，這份紀錄會自動填進鑑別工作台；醫師補上理學檢查與檢驗後就能分析。</p>
+      <p class="lead" id="staffLead" style="margin-bottom:0">按「帶入醫師工作台」，這份紀錄會自動填進鑑別工作台；醫師補上理學檢查與檢驗後就能分析。</p>
       <div class="record" id="record"></div>
       <button class="btn" id="handoffBtn" type="button">帶入醫師工作台</button>
       <div class="btnrow"><button class="btn ghost" id="copyBtn" type="button">複製紀錄</button><button class="btn ghost" id="nextBtn" type="button">換下一位病人</button></div>
@@ -169,9 +172,13 @@ footer { color: var(--muted); font-size: 13px; text-align: center; padding: 0 16
     else accessKey = localStorage.getItem("ddx-access-key") || "";
   } catch (_) { /* no storage: fine when the site needs no code */ }
 
+  // A clinic's patient link (/ddx/intake?c=...) also sends the finished record to that clinic's list on the doctor's workbench.
+  let clinic = "";
+  try { const c = new URL(location.href).searchParams.get("c") || ""; if (/^[A-Za-z0-9_-]{22}$/.test(c)) clinic = c; } catch (_) { clinic = ""; }
+
   let S = fresh();
   let retry = null;
-  function fresh() { return { bg: null, rounds: [], current: null, emergency: "", summary: null, done: false }; }
+  function fresh() { return { bg: null, rounds: [], current: null, emergency: "", summary: null, done: false, queued: 0 }; }
 
   // ---------- helpers ----------
   function h(tag, props, ...kids) {
@@ -357,6 +364,7 @@ footer { color: var(--muted); font-size: 13px; text-align: center; padding: 0 16
     if (!S.emergency && S.summary && S.summary.emergency) S.emergency = S.summary.emergency;
     setLoading("");
     renderDone();
+    sendToClinic();
   }
 
   function onStart() {
@@ -471,8 +479,9 @@ footer { color: var(--muted); font-size: 13px; text-align: center; padding: 0 16
     $("stepDone").scrollIntoView({ block: "start", behavior: "smooth" });
   }
 
-  // ---------- hand-over to the workbench on this device ----------
-  function handoff() {
+  // ---------- hand-over to the workbench ----------
+  // The record the workbench fills in, for this device's hand-over and for the clinic's list.
+  function buildRecord() {
     const b = S.bg, s = S.summary;
     const parts = [];
     if (S.emergency) parts.push(`⚠ 預問診急症攔截：${S.emergency}`);
@@ -482,11 +491,42 @@ footer { color: var(--muted); font-size: 13px; text-align: center; padding: 0 16
     if (s && s.negatives.length) parts.push("相關陰性：" + s.negatives.join("、"));
     if (s && s.uncertain.length) parts.push("病人不確定或未回答：" + s.uncertain.join("、"));
     parts.push("【病人預問診原始回答】\n" + qaText());
-    const rec = { v: 1, at: Date.now(), age: b.age, sex: b.sex, cc: (s && s.cc) || b.cc, hpi: parts.join("\n"), pmh: (s && s.pmh) || b.hx, emergency: S.emergency };
+    return { v: 1, at: Date.now(), age: b.age, sex: b.sex, cc: (s && s.cc) || b.cc, hpi: parts.join("\n"), pmh: (s && s.pmh) || b.hx, emergency: S.emergency, alerts: s ? s.alerts : [] };
+  }
+  function handoff() {
+    const rec = buildRecord();
     try { localStorage.setItem(HANDOFF_KEY, JSON.stringify(rec)); }
     catch (_) { alert("這台裝置不能暫存資料，請改用「複製紀錄」，再貼到工作台。"); return; }
     S = fresh(); // the record now lives only in the hand-over slot
     location.href = "/ddx#intake";
+  }
+  async function sendToClinic() {
+    if (!clinic || !S.done || S.queued) return;
+    const mine = S;
+    const box = $("queueBox");
+    box.className = "card";
+    box.replaceChildren(h("p", { text: "正在把你的回答送給醫師…" }));
+    box.hidden = false;
+    let res = null, data = null;
+    try {
+      res = await fetch("/api/intake-queue", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "submit", clinic, record: buildRecord() }) });
+      data = await res.json().catch(() => null);
+    } catch (_) { res = null; }
+    if (S !== mine) return; // staff already moved on to the next patient
+    if (res && res.ok && data && data.num) {
+      S.queued = data.num;
+      const no = String(data.num).padStart(3, "0");
+      box.className = "card number";
+      box.replaceChildren(h("p", { text: "你的看診前問診號碼" }), h("p", { class: "qnum", text: no }), h("p", { text: "看診時請告訴醫師這個號碼。" }));
+      $("staffLead").textContent = `這份紀錄已經在醫師工作台的「今日看診前問診」名單上（${no} 號），醫師點一下就能帶入。`;
+      $("handoffBtn").hidden = true;
+      return;
+    }
+    const stale = data && data.error === "unknown_clinic";
+    box.className = "card";
+    box.replaceChildren(
+      h("p", { class: "err", style: "margin-top:0", text: stale ? "這個問診連結已經更換，回答沒有送到醫師那裡。請告訴櫃台，櫃台可以用下面的「複製紀錄」。" : "回答還沒有送到醫師那裡，請按「再送一次」。" }),
+      stale ? null : h("button", { class: "btn", type: "button", onclick: sendToClinic }, "再送一次"));
   }
   function onCopy() {
     const text = recordText();
@@ -501,6 +541,7 @@ footer { color: var(--muted); font-size: 13px; text-align: center; padding: 0 16
     for (const b of document.querySelectorAll("#sex button, #hxChips button")) b.setAttribute("aria-pressed", "false");
     $("kwUrgent").hidden = true;
     $("stepDone").hidden = true; $("stepAsk").hidden = true; $("netBox").hidden = true;
+    $("queueBox").hidden = true; $("handoffBtn").hidden = false; $("staffLead").textContent = STAFF_LEAD;
     $("stepStart").hidden = false;
     window.scrollTo({ top: 0 });
   }
@@ -524,6 +565,7 @@ footer { color: var(--muted); font-size: 13px; text-align: center; padding: 0 16
   $("startBtn").addEventListener("click", onStart);
   $("sendBtn").addEventListener("click", onSend);
   $("retryBtn").addEventListener("click", () => { $("netBox").hidden = true; if (retry) retry(); });
+  const STAFF_LEAD = $("staffLead").textContent;
   $("handoffBtn").addEventListener("click", handoff);
   $("copyBtn").addEventListener("click", onCopy);
   $("nextBtn").addEventListener("click", onNext);

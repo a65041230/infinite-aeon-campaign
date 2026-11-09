@@ -164,6 +164,20 @@ legend { font-weight: 500; font-size: 14px; padding: 0; margin-bottom: 6px; }
 .fold { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 .fold > summary { cursor: pointer; padding: 10px 12px; font-weight: 600; font-size: 14px; }
 .fold > .fold-body { padding: 0 12px 12px; }
+.queue { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--surface-2); display: grid; gap: 8px; }
+.queue-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.queue-head .btn { margin-left: auto; }
+.q-body { display: grid; gap: 8px; }
+.q-list { display: grid; gap: 6px; }
+.q-item { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 14px; }
+.q-item.urgent { border-color: var(--flag); background: var(--flag-soft); }
+.q-item.taken { opacity: 0.7; }
+.q-item .btn { padding: 6px 12px; }
+.q-num { font-family: var(--font-mono); font-weight: 700; font-size: 16px; }
+.q-cc { flex: 1 1 180px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.q-done > summary { cursor: pointer; padding: 2px 0; }
+.q-qr { display: block; width: 220px; max-width: 100%; height: auto; background: #fff; border-radius: 8px; margin: 8px 0; }
+.q-url { font-family: var(--font-mono); font-size: 12.5px; word-break: break-all; margin-bottom: 8px; }
 .cats { display: grid; gap: 8px; }
 .cat { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--surface-2); }
 .cat-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -290,6 +304,18 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
           <h2 class="panel-title">病例</h2>
           <p class="panel-sub">去識別化後填寫。沒有的欄位可以空著。也可以讓病人先用 <a href="/ddx/intake" target="_blank" rel="noopener">看診前問診</a> 回答，完成後帶入這裡。</p>
         </div>
+        <div id="queuePanel" class="queue" hidden>
+          <div class="queue-head">
+            <strong>今日看診前問診</strong>
+            <span id="queueStatus" class="hint" role="status"></span>
+            <button type="button" class="btn btn-quiet" id="queueRefresh">重新整理</button>
+          </div>
+          <div id="queueBody" class="q-body"></div>
+          <details class="fold" id="queueLink">
+            <summary>給病人的連結與 QR code</summary>
+            <div class="fold-body" id="queueLinkBody"></div>
+          </details>
+        </div>
         <div id="intakeNotice" class="notice notice-info" role="status" hidden></div>
         <div class="grid-4">
           <div class="field"><label for="f-age">年齡</label><input id="f-age" type="number" min="0" max="120" inputmode="numeric" placeholder="歲"></div>
@@ -382,7 +408,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
         <li>分析大約需要一到三分鐘，完成後會自動進行反方審查。反方審查漏掉的診斷會自動加入鑑別清單。</li>
         <li>你可以直接修改每個診斷的狀態（例如改成「已排除」），下一輪會以你的判斷為準。</li>
         <li>有新的病史、檢查或檢驗結果時，在結果下方的「下一輪」輸入，按「更新分析」。連續兩輪沒有進展時，頁面會提醒你考慮會診、轉診或安排追蹤。</li>
-        <li>看診前可以讓病人用 <a href="/ddx/intake" target="_blank" rel="noopener">看診前問診</a> 自己回答問題：AI 會依主訴分幾組追問（不會告訴病人診斷，有急症徵兆會請病人立刻告訴櫃台），完成後在同一台裝置按「帶入醫師工作台」，紀錄就會填進這裡的病例欄位。資料只暫存在這台裝置，帶入後就刪除。</li>
+        <li>看診前可以讓病人用 <a href="/ddx/intake" target="_blank" rel="noopener">看診前問診</a> 自己回答問題：AI 會依主訴分幾組追問（不會告訴病人診斷，有急症徵兆會請病人立刻告訴櫃台），病人用「給病人的連結與 QR code」裡的連結填完，會拿到當天的號碼，病例欄位上方的「今日看診前問診」名單按「帶入」就會填進來（要輸入通行碼；紀錄 12 小時後自動刪除）。病人用一般連結時，在同一台裝置按「帶入醫師工作台」。</li>
         <li>分析與反方審查會對照「主訴安全網」：26 個常見主訴各自必須排除的診斷，目前是醫師審核中的草稿（<a href="/ddx/safety-net.html" target="_blank" rel="noopener">查看清單</a>）。</li>
         <li>「複製摘要」可以貼到病歷草稿；「存檔」把整份紀錄存成檔案，下次用「開啟存檔」接著分析。</li>
       </ol>
@@ -1203,8 +1229,9 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       blockedKind = "";
       renderAvailability();
       renderReason();
+      loadQueue();
     };
-    input.addEventListener("keydown", (e) => { if (e.key === "Enter") use(); });
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); use(); } });
     return h("div", { style: "display:flex;gap:8px;align-items:center" }, input,
       h("button", { type: "button", class: "btn", onclick: use }, "使用"));
   }
@@ -1447,6 +1474,10 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     if (!rec || !rec.cc) { box.className = "notice notice-warn"; box.textContent = "沒有找到看診前問診的紀錄，可能已經帶入過了。"; box.hidden = false; return; }
     if (Date.now() - (rec.at || 0) > 12 * 3600 * 1000) { box.className = "notice notice-warn"; box.textContent = "看診前問診的紀錄已經超過 12 小時，沒有帶入。"; box.hidden = false; return; }
     if (busy) return;
+    fillFromIntake(rec, "");
+  }
+  // Fills the case form from a pre-visit interview record; label names its number on the clinic's list.
+  function fillFromIntake(rec, label) {
     state = newState();
     state.case = { ...blankCase(), age: String(rec.age || ""), sex: rec.sex || "", cc: rec.cc, hpi: rec.hpi || "", pmh: rec.pmh || "" };
     fillCaseForm(state.case);
@@ -1454,15 +1485,168 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     reasonError = "";
     showCopy = "";
     renderReason();
-    const when = new Date(rec.at).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false });
+    importedSnapshot = caseSnapshot();
+    const box = $("intakeNotice");
     box.className = rec.emergency ? "notice notice-flag" : "notice notice-info";
     box.replaceChildren(...[
-      h("strong", { text: `已帶入看診前問診（${when}）。` }),
+      h("strong", { text: `已帶入${label}看診前問診（${clock(rec.at)}）。` }),
       rec.emergency ? h("span", { text: ` 問診時有急症攔截：${rec.emergency}` }) : null,
       " 請補上理學檢查、生命徵象與檢驗，確認已去識別化後按「開始分析」。",
     ].filter(Boolean));
     box.hidden = false;
     box.scrollIntoView({ block: "center" });
+  }
+  function clock(t) { return new Date(t).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false }); }
+
+  // ---------- today's pre-visit interviews ----------
+  // Patients who used the clinic's link (/ddx/intake?c=...) appear here with the day's number.
+  // The list needs the access code; the server deletes records 12 hours after they arrive.
+  const queue = { state: "idle", items: [], error: false, loading: false, lastActive: Date.now() };
+  let importedSnapshot = null;
+  function pad3(n) { return String(n).padStart(3, "0"); }
+  function caseSnapshot() {
+    return [...$("caseForm").querySelectorAll("input:not([type=checkbox]), textarea, select")]
+      .filter((el) => !el.closest("#queuePanel"))
+      .map((el) => el.value.trim())
+      .join("\u0001");
+  }
+  // True when bringing in another patient would throw away something the doctor typed.
+  function caseIsDirty() {
+    if (state.isExample) return false;
+    const typed = ["f-cc", "f-hpi", "f-pmh", "f-pe", "f-labs", "f-thoughts"].some((id) => $(id).value.trim());
+    return typed && caseSnapshot() !== importedSnapshot;
+  }
+  async function queueCall(body) {
+    let res, data = null;
+    try {
+      res = await fetch("/api/intake-queue", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...(accessKey ? { "x-ddx-key": accessKey } : {}) },
+        body: JSON.stringify(body),
+      });
+      data = await res.json().catch(() => null);
+    } catch (_) { throw { code: "network" }; }
+    if (!res.ok) throw { code: (data && data.error) || "network" };
+    return data || {};
+  }
+  async function loadQueue() {
+    if (queue.loading) return;
+    queue.loading = true;
+    try {
+      const d = await queueCall({ action: "list" });
+      queue.items = Array.isArray(d.items) ? d.items : [];
+      queue.state = "ok";
+      queue.error = false;
+    } catch (e) {
+      if (e.code === "queue_off") queue.state = "off";
+      else if (e.code === "no_key" || e.code === "bad_key") queue.state = e.code;
+      else queue.error = true;
+    }
+    queue.loading = false;
+    renderQueue();
+  }
+  function renderQueue() {
+    const panel = $("queuePanel");
+    panel.hidden = queue.state === "off" || (queue.state === "idle" && !queue.error);
+    if (panel.hidden) return;
+    const ready = queue.state === "ok";
+    const body = $("queueBody");
+    $("queueLink").hidden = !ready;
+    $("queueRefresh").hidden = !ready && !queue.error;
+    // The site is open to everyone, so without a code this stays one folded line.
+    if (queue.state === "no_key") {
+      $("queueStatus").textContent = "診所用，需要通行碼";
+      body.replaceChildren(h("details", { class: "q-done" },
+        h("summary", { class: "hint", text: "輸入通行碼後，這裡會列出今天病人填好的看診前問診，點一下就能帶入" }),
+        keyEntry()));
+      return;
+    }
+    if (queue.state === "bad_key") {
+      $("queueStatus").textContent = "";
+      body.replaceChildren(
+        h("p", { class: "hint", text: "通行碼不正確或已經更換。輸入最新的通行碼後，這裡會列出今天病人填好的看診前問診。" }),
+        keyEntry());
+      return;
+    }
+    const waiting = queue.items.filter((x) => !x.taken);
+    const taken = queue.items.filter((x) => x.taken);
+    $("queueStatus").textContent = queue.error ? "暫時連不上，稍後會再試" : waiting.length ? `${waiting.length} 位還沒帶入` : "";
+    if (!ready) { body.replaceChildren(); return; }
+    const takenOpen = !!body.querySelector(".q-done[open]");
+    body.replaceChildren(...[
+      queue.items.length ? null : h("p", { class: "hint", text: "今天還沒有病人填寫。病人用下面的連結或 QR code 填完，就會出現在這裡。" }),
+      waiting.length ? h("div", { class: "q-list" }, waiting.map(queueRow)) : null,
+      taken.length ? h("details", { class: "q-done", open: takenOpen },
+        h("summary", { class: "hint", text: `已帶入的 ${taken.length} 位` }),
+        h("div", { class: "q-list" }, taken.map(queueRow))) : null,
+    ].filter(Boolean));
+  }
+  function queueRow(it) {
+    const who = [it.sex, it.age ? `${it.age} 歲` : ""].filter(Boolean).join(" ");
+    return h("div", { class: "q-item" + (it.urgent ? " urgent" : "") + (it.taken ? " taken" : "") },
+      h("span", { class: "q-num", text: pad3(it.num) }),
+      h("span", { class: "hint", text: clock(it.at) }),
+      who ? h("span", { text: who }) : null,
+      h("span", { class: "q-cc", title: it.cc, text: it.cc }),
+      it.urgent ? h("span", { class: "chip chip-flag", text: "急症攔截" }) : it.alerts ? h("span", { class: "chip chip-warn", text: "優先注意" }) : null,
+      h("button", { type: "button", class: it.taken ? "btn" : "btn btn-primary", onclick: () => takeFromQueue(it) }, it.taken ? "再帶入" : "帶入"),
+      h("button", { type: "button", class: "btn btn-quiet", "aria-label": `刪除 ${pad3(it.num)} 號`, onclick: () => deleteFromQueue(it) }, "刪除"));
+  }
+  async function takeFromQueue(it) {
+    if (busy) { toast("分析進行中，完成後再帶入。"); return; }
+    if (caseIsDirty() && !confirm(`表單裡的病例會換成 ${pad3(it.num)} 號的看診前問診，確定嗎？`)) return;
+    try {
+      const d = await queueCall({ action: "take", id: it.id });
+      if (busy) return;
+      fillFromIntake(d.record, `${pad3(d.num)} 號的`);
+      it.taken = true;
+      renderQueue();
+    } catch (e) {
+      toast(e.code === "gone" ? "這筆紀錄已經過期或被刪除。" : e.code === "bad_key" ? "通行碼已經更換，請重新輸入。" : "帶入失敗，請再試一次。");
+      loadQueue();
+    }
+  }
+  async function deleteFromQueue(it) {
+    if (!confirm(`刪除 ${pad3(it.num)} 號的看診前問診？刪除後無法復原。`)) return;
+    try { await queueCall({ action: "delete", id: it.id }); toast(`已刪除 ${pad3(it.num)} 號`); }
+    catch (_) { toast("刪除失敗，請再試一次。"); }
+    loadQueue();
+  }
+  async function showQueueLink() {
+    const body = $("queueLinkBody");
+    if (!$("queueLink").open || body.dataset.loaded) return;
+    body.replaceChildren(h("p", { class: "hint", text: "載入中…" }));
+    try {
+      const d = await queueCall({ action: "link" });
+      body.dataset.loaded = "1";
+      const copy = () => {
+        try { navigator.clipboard.writeText(d.url).then(() => toast("已複製病人用的連結"), () => toast("無法複製，請手動選取網址")); }
+        catch (_) { toast("無法複製，請手動選取網址"); }
+      };
+      body.replaceChildren(
+        h("p", { class: "hint", text: "把 QR code 印出來貼在候診區，或在櫃台的平板打開這個連結。病人填完會拿到今天的號碼，名單上就會出現。紀錄 12 小時後自動刪除。" }),
+        h("img", { class: "q-qr", src: d.qr, alt: "病人用的看診前問診 QR code", width: "220", height: "220" }),
+        h("p", { class: "q-url", text: d.url }),
+        h("div", { style: "display:flex;gap:8px;flex-wrap:wrap" },
+          h("button", { type: "button", class: "btn", onclick: copy }, "複製連結"),
+          h("a", { class: "btn", href: d.qr, download: "看診前問診QR.png" }, "下載 QR code")));
+    } catch (_) {
+      body.replaceChildren(h("p", { class: "hint", text: "載入失敗，請收合後再打開一次。" }));
+    }
+  }
+  function setupQueue() {
+    $("queueRefresh").addEventListener("click", loadQueue);
+    $("queueLink").addEventListener("toggle", showQueueLink);
+    const active = () => { queue.lastActive = Date.now(); };
+    window.addEventListener("pointerdown", active, { passive: true });
+    window.addEventListener("keydown", active, { passive: true });
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { active(); loadQueue(); } });
+    window.addEventListener("focus", () => { active(); if (queue.state === "ok") loadQueue(); });
+    // Every minute while the page is in use; it stops after 20 idle minutes so the database can sleep.
+    setInterval(() => {
+      if (queue.state === "ok" && document.visibilityState === "visible" && Date.now() - queue.lastActive < 20 * 60000) loadQueue();
+    }, 60000);
+    loadQueue();
   }
   function onClear() {
     if (busy) return;
@@ -1844,6 +2028,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     $("btn-clear").addEventListener("click", onClear);
     setupQuick();
     takeIntakeHandoff();
+    setupQueue();
     $("btn-reset-yes").addEventListener("click", () => { $("resetConfirm").hidden = true; runReason("new", ""); });
     $("btn-reset-no").addEventListener("click", () => { $("resetConfirm").hidden = true; });
     $("fileInput").addEventListener("change", onOpenFile);
