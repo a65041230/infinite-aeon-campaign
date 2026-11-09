@@ -13,7 +13,7 @@ export const runtime = "edge";
 export const maxDuration = 300;
 
 const MAX_PROMPT_CHARS = 60_000;
-const TASK_EFFORT = { reason: "high", critic: "high", comm: "medium" } as const;
+const TASK_EFFORT = { reason: "high", critic: "high", comm: "medium", intake: "medium", intake_summary: "low" } as const;
 type Task = keyof typeof TASK_EFFORT;
 type Send = (event: Record<string, unknown>) => void;
 
@@ -24,6 +24,15 @@ const SYSTEM =
 
 // "deepseek" covers any OpenAI-style Chat Completions endpoint: DeepSeek's own
 // API, or OpenRouter when the key is an OpenRouter key (sk-or-…).
+// The pre-visit interview (/ddx/intake) talks to patients, so it gets its own frame.
+const SYSTEM_INTAKE =
+  "這是台灣診所看診前預問診工具的後端：產生給候診病人回答的問題，並把病人的回答整理成給醫師的紀錄。" +
+  "不得對病人說出或暗示任何診斷，不給治療建議，並嚴格依照使用者訊息指定的 JSON 格式回覆。" +
+  "所有內容一律使用台灣慣用的繁體中文，不要使用簡體字。";
+function systemFor(task: Task): string {
+  return task === "intake" || task === "intake_summary" ? SYSTEM_INTAKE : SYSTEM;
+}
+
 type Provider = { name: "anthropic" | "deepseek"; key: string; model: string; base: string; openRouter: boolean };
 
 // Tolerate common paste slips in the dashboard: surrounding spaces or quotes,
@@ -121,7 +130,7 @@ async function streamClaude(p: Provider, task: Task, prompt: string, signal: Abo
           betas: ["server-side-fallback-2026-07-01"],
           fallbacks: "default",
           output_config: { effort: TASK_EFFORT[task] },
-          system: SYSTEM,
+          system: systemFor(task),
           messages: [{ role: "user", content: prompt }],
         },
         { signal },
@@ -161,7 +170,7 @@ async function streamClaudeViaOpenRouter(
   const request = {
     model,
     max_tokens: 32_000,
-    system: SYSTEM,
+    system: systemFor(task),
     messages: [{ role: "user" as const, content: prompt }],
   };
   try {
@@ -209,7 +218,7 @@ async function streamDeepSeek(p: Provider, task: Task, prompt: string, signal: A
     max_tokens: 32_000, // reasoning tokens count toward this too
     response_format: { type: "json_object" },
     messages: [
-      { role: "system", content: SYSTEM },
+      { role: "system", content: systemFor(task) },
       { role: "user", content: prompt },
     ],
   };

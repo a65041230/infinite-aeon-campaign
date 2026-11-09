@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>看診前問診</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+/* Patient-facing pre-visit interview. Large type and targets; no clinical reasoning is ever shown here. */
+:root {
+  --bg: #eef2f5; --surface: #ffffff; --surface-2: #f5f7f9; --ink: #15202b; --muted: #566573; --line: #d3dbe2;
+  --accent: #1b5a8a; --accent-ink: #ffffff; --flag: #b3261e; --flag-soft: #fbe8e6; --ok: #23704a; --ok-soft: #e1f2e8;
+  --focus: #2f7fc1;
+  --font-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e141a; --surface: #151d25; --surface-2: #1b252f; --ink: #e4eaf0; --muted: #9aa8b5; --line: #2b3844;
+    --accent: #6eaee0; --accent-ink: #08131c; --flag: #ff8b80; --flag-soft: #3a1714; --ok: #73d19c; --ok-soft: #10301f; --focus: #8cc4f0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e141a; --surface: #151d25; --surface-2: #1b252f; --ink: #e4eaf0; --muted: #9aa8b5; --line: #2b3844;
+  --accent: #6eaee0; --accent-ink: #08131c; --flag: #ff8b80; --flag-soft: #3a1714; --ok: #73d19c; --ok-soft: #10301f; --focus: #8cc4f0;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 17px; line-height: 1.7; }
+main { max-width: 680px; margin: 0 auto; padding: 16px max(16px, env(safe-area-inset-right, 0px)) 48px max(16px, env(safe-area-inset-left, 0px)); }
+h1 { font-size: 24px; margin: 8px 0 4px; }
+h2 { font-size: 19px; margin: 0 0 10px; }
+p { margin: 0; }
+.lead { color: var(--muted); margin-bottom: 14px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+.urgent { background: var(--flag-soft); color: var(--flag); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; font-weight: 500; }
+.urgent.big { font-size: 20px; font-weight: 700; }
+.note { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; font-size: 15px; color: var(--muted); }
+.lbl { display: block; font-weight: 700; margin: 14px 0 6px; }
+input[type=number], input[type=text], textarea { width: 100%; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--ink); min-height: 48px; }
+textarea { min-height: 88px; resize: vertical; }
+input:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.row2 { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
+.seg { display: flex; gap: 6px; }
+.seg button, .chips button, .yn button, .scale button { font: inherit; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); border-radius: 10px; cursor: pointer; min-height: 48px; }
+.seg button { flex: 1; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.chips button { border-radius: 999px; padding: 6px 14px; min-height: 42px; font-size: 15px; }
+button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.btn { display: block; width: 100%; font: inherit; font-weight: 700; border: 0; border-radius: 12px; padding: 14px; min-height: 54px; cursor: pointer; margin-top: 16px; background: var(--accent); color: var(--accent-ink); }
+.btn.ghost { background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); }
+.btn:disabled { opacity: .55; cursor: default; }
+.check { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; }
+.check input { width: 22px; height: 22px; margin-top: 4px; flex: none; }
+.q { padding: 14px 0; border-top: 1px solid var(--line); }
+.q:first-child { border-top: 0; padding-top: 0; }
+.qt { font-weight: 700; margin-bottom: 10px; }
+.qt .n { color: var(--accent); margin-right: 6px; }
+.yn { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.scale { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.scale button { min-height: 44px; }
+.scale-hint { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-top: 4px; }
+.q .extra { margin-top: 8px; font-size: 15px; min-height: 44px; }
+.q.missing .qt { color: var(--flag); }
+.skip { margin-top: 6px; font: inherit; font-size: 14px; background: none; border: 0; color: var(--accent); cursor: pointer; padding: 4px 0; }
+.err { color: var(--flag); margin-top: 10px; white-space: pre-line; }
+.loading { display: flex; align-items: center; gap: 10px; color: var(--muted); padding: 14px 2px; }
+.spin { width: 20px; height: 20px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: sp 1s linear infinite; flex: none; }
+@keyframes sp { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+.progress { font-size: 14px; color: var(--muted); margin-bottom: 6px; }
+.thanks { background: var(--ok-soft); color: var(--ok); }
+.staff { border: 2px dashed var(--line); }
+.staff h2 { font-size: 17px; }
+.record { font-size: 14px; white-space: pre-wrap; background: var(--surface-2); border-radius: 10px; padding: 12px; max-height: 45vh; overflow: auto; margin-top: 10px; }
+.btnrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.btnrow .btn { margin-top: 8px; }
+footer { color: var(--muted); font-size: 13px; text-align: center; padding: 0 16px 24px; }
+@media (max-width: 380px) { .row2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>看診前問診</h1>
+  <p class="lead">回答幾個問題，幫醫師在看診前先了解你的狀況。這裡不會告訴你是什麼病，看診時由醫師說明。</p>
+
+  <div class="urgent" id="alwaysUrgent">如果你現在胸痛、喘不過氣、一邊手腳沒力氣、說話不清楚、頭痛得很厲害，或覺得快要昏倒，請不要等這份問卷，立刻告訴櫃台或護理人員。</div>
+  <div class="urgent" id="kwUrgent" role="alert" hidden></div>
+
+  <section class="card" id="stepStart">
+    <h2>基本資料</h2>
+    <div class="row2">
+      <div><label class="lbl" for="age">年齡</label><input type="number" id="age" inputmode="numeric" min="0" max="120" placeholder="歲"></div>
+      <div><span class="lbl">性別</span><div class="seg" id="sex"><button type="button" aria-pressed="false">男</button><button type="button" aria-pressed="false">女</button><button type="button" aria-pressed="false">其他</button></div></div>
+    </div>
+    <label class="lbl" for="cc">今天哪裡不舒服？從什麼時候開始？</label>
+    <textarea id="cc" placeholder="例如：昨天晚上開始一直想吐"></textarea>
+    <div class="chips" id="ccChips" aria-label="常見症狀，點一下加入"></div>
+    <span class="lbl">以前有的病、長期用藥或習慣（可以複選）</span>
+    <div class="chips" id="hxChips" aria-label="病史與習慣，點一下選取"></div>
+    <label class="lbl" for="hxText">其他病史、長期用藥或過敏（可留空）</label>
+    <input type="text" id="hxText" placeholder="例如：吃血壓藥、對盤尼西林過敏">
+    <p class="note" style="margin-top:14px">請不要輸入姓名、身分證字號、電話或地址。你的回答會由 AI 整理後交給醫師參考。</p>
+    <label class="check"><input type="checkbox" id="consent"><span>我了解這份問卷不會告訴我是什麼病，同意把回答整理後交給醫師。</span></label>
+    <div class="err" id="startErr"></div>
+    <button class="btn" id="startBtn" type="button">開始</button>
+  </section>
+
+  <section class="card" id="stepAsk" hidden>
+    <p class="progress" id="roundLabel"></p>
+    <h2>請回答下面的問題</h2>
+    <div id="qs"></div>
+    <div class="err" id="askErr"></div>
+    <button class="btn" id="sendBtn" type="button">送出這一組</button>
+  </section>
+
+  <div class="loading" id="loading" hidden><div class="spin"></div><span id="loadingTxt"></span></div>
+  <div id="netBox" hidden><div class="err" id="netErr"></div><button class="btn ghost" id="retryBtn" type="button">再試一次</button></div>
+
+  <section id="stepDone" hidden>
+    <div class="card" id="doneMsg"></div>
+    <div class="card staff">
+      <h2>給醫護人員</h2>
+      <p class="lead" style="margin-bottom:0">按「帶入醫師工作台」，這份紀錄會自動填進鑑別工作台；醫師補上理學檢查與檢驗後就能分析。</p>
+      <div class="record" id="record"></div>
+      <button class="btn" id="handoffBtn" type="button">帶入醫師工作台</button>
+      <div class="btnrow"><button class="btn ghost" id="copyBtn" type="button">複製紀錄</button><button class="btn ghost" id="nextBtn" type="button">換下一位病人</button></div>
+    </div>
+  </section>
+</main>
+<footer>看診前問診只用來整理病史，不提供診斷。診斷與處置由醫師負責。</footer>
+
+<script>
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const MAX_ROUNDS = 3;
+  const HANDOFF_KEY = "ddx-intake-handoff";
+  const CC_TERMS = ["胸痛", "胸悶", "喘", "心悸", "頭痛", "頭暈", "昏倒", "肚子痛", "噁心想吐", "發燒", "背痛", "沒力氣", "體重變輕"];
+  const HX_TERMS = ["高血壓", "糖尿病", "高血脂", "心臟病", "中風過", "腎臟病", "氣喘", "癌症", "吃抗凝血劑", "抽菸", "喝酒", "嚼檳榔", "可能懷孕"];
+  // Words that should send a patient to the desk now. They only raise a reminder; the AI makes the call each round.
+  const URGENT = /(胸痛|胸口痛|胸口壓|喘不過氣|呼吸困難|一邊.{0,4}(無力|沒力|麻)|單側.{0,4}(無力|沒力|麻)|嘴歪|說話不清|口齒不清|講話不清|最痛的頭痛|頭痛得很厲害|劇烈頭痛|昏倒|失去意識|吐血|黑便|解血|大量出血|抽搐|意識不清|想自殺|不想活|傷害自己)/;
+  const PII_RULES = [
+    { name: "身分證字號", re: /\b[A-Z][1289]\d{8}\b|\b[A-Z][A-D]\d{8}\b/i },
+    { name: "手機號碼", re: /(^|\D)09\d{2}[-\s]?\d{3}[-\s]?\d{3}(?!\d)/ },
+    { name: "市話號碼", re: /(^|\D)\(?0\d{1,2}\)?[-\s]?\d{3,4}[-\s]?\d{4}(?!\d)/ },
+    { name: "電子郵件", re: /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/ },
+  ];
+  const ERRORS = {
+    too_long: "整理問題花太久了，請再試一次。",
+    rate_limited: "現在使用的人比較多，請等一分鐘再試。",
+    not_configured: "系統暫時不能使用，請告訴櫃台。",
+    no_credit: "系統暫時不能使用，請告訴櫃台。",
+    no_key: "這台裝置還沒設定好，請醫護人員協助。",
+    bad_key: "這台裝置的設定已經失效，請醫護人員協助。",
+    refused: "這一組問題沒有整理成功，請再試一次。",
+  };
+
+  // An access code given with ?k= is kept the same way the workbench keeps it.
+  let accessKey = "";
+  try {
+    const url = new URL(location.href);
+    const k = (url.searchParams.get("k") || "").trim();
+    if (k) { accessKey = k; localStorage.setItem("ddx-access-key", k); url.searchParams.delete("k"); history.replaceState(null, "", url.pathname + url.search); }
+    else accessKey = localStorage.getItem("ddx-access-key") || "";
+  } catch (_) { /* no storage: fine when the site needs no code */ }
+
+  let S = fresh();
+  let retry = null;
+  function fresh() { return { bg: null, rounds: [], current: null, emergency: "", summary: null, done: false }; }
+
+  // ---------- helpers ----------
+  function h(tag, props, ...kids) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(props || {})) {
+      if (v == null || v === false) continue;
+      if (k === "class") el.className = v;
+      else if (k === "text") el.textContent = v;
+      else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
+      else el.setAttribute(k, v === true ? "" : String(v));
+    }
+    for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
+    return el;
+  }
+  function piiHit(text) { const r = PII_RULES.find((x) => x.re.test(text)); return r ? r.name : ""; }
+  function setLoading(text) { $("loading").hidden = !text; $("loadingTxt").textContent = text || ""; }
+  function showNetErr(e, again) {
+    $("netErr").textContent = (e && ERRORS[e.code]) || "連線有點問題，請再試一次。";
+    $("netBox").hidden = false;
+    retry = again;
+  }
+  function checkUrgent(text) {
+    const m = URGENT.exec(text || "");
+    if (!m) return;
+    const box = $("kwUrgent");
+    box.textContent = `你提到「${m[0]}」。如果這個情形現在正在發生，或越來越嚴重，請立刻告訴櫃台或護理人員，不用等問卷填完。`;
+    box.hidden = false;
+  }
+  function parseJsonLoose(t) {
+    try { return JSON.parse(t); } catch (_) { /* fall through */ }
+    const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fence) { try { return JSON.parse(fence[1]); } catch (_) { /* fall through */ } }
+    const a = t.indexOf("{"), b = t.lastIndexOf("}");
+    if (a >= 0 && b > a) { try { return JSON.parse(t.slice(a, b + 1)); } catch (_) { /* give up */ } }
+    return undefined;
+  }
+  // Same backend as the workbench: /api/ddx streams newline-delimited JSON events.
+  async function ask(prompt, task) {
+    let res;
+    try {
+      res = await fetch("/api/ddx", { method: "POST", headers: { "content-type": "application/json", ...(accessKey ? { "x-ddx-key": accessKey } : {}) }, body: JSON.stringify({ task, prompt }) });
+    } catch (_) { throw { code: "network" }; }
+    if (!res.ok || !res.body) {
+      let code = "";
+      try { code = (await res.json()).error || ""; } catch (_) { /* not JSON */ }
+      throw { code: code || "network" };
+    }
+    const reader = res.body.getReader(), decoder = new TextDecoder();
+    let buf = "", text = "", done = null;
+    try {
+      for (;;) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        buf += decoder.decode(chunk.value, { stream: true });
+        let nl;
+        while ((nl = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, nl).trim();
+          buf = buf.slice(nl + 1);
+          if (!line) continue;
+          let ev;
+          try { ev = JSON.parse(line); } catch (_) { continue; }
+          if (ev.t === "d") text += ev.d;
+          else if (ev.t === "reset") text = "";
+          else if (ev.t === "done") done = ev;
+          else if (ev.t === "error") throw { code: ev.error || "network" };
+        }
+      }
+    } catch (e) { throw e && e.code ? e : { code: "network" }; }
+    if (!done) throw { code: "network" };
+    const data = parseJsonLoose(text);
+    if (!data || typeof data !== "object" || Array.isArray(data)) throw { code: "invalid_json" };
+    return data;
+  }
+
+  // ---------- prompts ----------
+  function bgText() {
+    const b = S.bg;
+    return `年齡：${b.age || "未填"}；性別：${b.sex || "未填"}\n主訴（病人自己的話）：${b.cc}\n病史、用藥、習慣：${b.hx || "病人沒有填"}`;
+  }
+  function answerText(a) { return a ? a.answer + (a.note ? `（補充：${a.note}）` : "") : "（未回答）"; }
+  function qaText() {
+    if (!S.rounds.length) return "（還沒有問過）";
+    return S.rounds.map((r) => `第 ${r.n} 組：\n` + r.questions.map((q, i) => `- ${q.text} → ${answerText(r.answers[i])}`).join("\n")).join("\n");
+  }
+  function roundPrompt(n) {
+    return [
+      "你是看診前的問診助理，幫醫師在看診前收集病史。病人會直接看到你產生的問題。",
+      "",
+      "【規則】",
+      "1. 只產生問題。不要解釋病情，不要說出或暗示病人現在可能是什麼病（例如不要問「你覺得是不是中風？」），不要給治療或用藥建議。問過去病史時可以提病名，例如「以前有沒有糖尿病？」。",
+      "2. 一題只問一件事，不要用「或、還有」把兩件事併成一題。用病人聽得懂的口語。",
+      "3. 題型：yn（回答是、否、不確定）、scale（0 到 10 分）、text（需要病人描述）。能用 yn 就用 yn，嚴重程度用 scale。",
+      "4. 第 1 組先補齊主訴的基本資料：什麼時候開始、突然還是慢慢開始、什麼會變嚴重或變好、感覺像什麼、在哪裡和會不會跑到別處、嚴重程度、一直持續還是一陣一陣；再加上最重要的伴隨症狀。最多 8 題。",
+      "5. 第 2 組以後，根據前面的回答，問最能分辨危險原因的問題，例如危險徵兆、伴隨症狀、相關病史、目前用藥與過敏、以前有沒有類似情形、同住的人有沒有一樣的症狀、女性是否可能懷孕。每組最多 6 題，不要重複問已經回答過的。",
+      "6. 急症攔截：只要回答顯示可能需要立即處理（例如正在胸痛並冒冷汗或喘、突然一邊無力或說話不清楚、這輩子最痛的頭痛、意識不清、大量出血、想傷害自己），把 emergency 設為 true，在 emergency_message 用一句口語請病人立刻告訴櫃台或護理人員，questions 給空陣列。",
+      "7. 主訴的基本資料已經齊全、危險徵兆也都問過，就把 done 設為 true，questions 給空陣列。最多問到第 " + MAX_ROUNDS + " 組。",
+      "8. 回答「不確定」或「跳過」代表病人不知道，不能當作「沒有」；重要的話可以換個問法再問一次。",
+      "9. checking 寫給醫師看，病人看不到：這一組想釐清什麼，一句話。",
+      "",
+      "【輸出格式】只回覆一個 JSON 物件，不要任何其他文字：",
+      JSON.stringify({ emergency: false, emergency_message: "", done: false, questions: [{ type: "yn", text: "問題" }], checking: "這一組想釐清什麼" }, null, 2),
+      "",
+      "【病人資料】",
+      bgText(),
+      "",
+      "【已經問過的問題與回答】",
+      qaText(),
+      "",
+      `現在請產生第 ${n} 組問題。`,
+      "（全程使用台灣繁體中文，不要出現簡體字。）",
+    ].join("\n");
+  }
+  function summaryPrompt() {
+    return [
+      "你是病歷整理助理，把下面的看診前問診整理成給醫師的紀錄。",
+      "",
+      "【鐵則】",
+      "1. 只寫病人實際回答的內容；沒有問到的不要寫，也不能寫成「否認」。",
+      "2. 回答「不確定」或「跳過」的放在 uncertain，不能當作沒有。",
+      "3. 不要推測診斷，不要寫理學檢查或檢驗。",
+      "4. 用醫師習慣的簡潔寫法，但保留病人原話的重點。",
+      "",
+      "【輸出格式】只回覆一個 JSON 物件，不要任何其他文字：",
+      JSON.stringify({ cc: "主訴，一句話", hpi: "現病史：依發作時間、誘發與緩解、性質、部位與轉移、嚴重度、時間型態寫成一段", positives: ["相關陽性"], negatives: ["病人明確說沒有的"], uncertain: ["病人不確定或沒有回答的"], pmh: "過去病史、用藥、過敏", alerts: ["需要醫師優先注意的回答"] }, null, 2),
+      "",
+      "【病人資料】",
+      bgText(),
+      "",
+      "【問答紀錄】",
+      qaText(),
+      S.emergency ? `\n【急症攔截】${S.emergency}` : "",
+      "",
+      "（全程使用台灣繁體中文，不要出現簡體字。）",
+    ].join("\n");
+  }
+  // Keeps only real questions and drops any line that states a diagnosis to the patient.
+  function normRound(d) {
+    const qs = (Array.isArray(d.questions) ? d.questions : [])
+      .map((q) => (q && typeof q === "object" ? { type: q.type, text: String(q.text || "").trim() } : { type: "yn", text: String(q || "").trim() }))
+      .map((q) => ({ type: ["yn", "scale", "text"].includes(q.type) ? q.type : "yn", text: q.text }))
+      .filter((q) => q.text && /[？?]/.test(q.text) && !/(診斷(是|為)|你得了|你罹患了)/.test(q.text))
+      .slice(0, 8);
+    return {
+      emergency: d.emergency === true || d.emergency === "true",
+      message: String(d.emergency_message || "").trim(),
+      done: d.done === true || d.done === "true",
+      questions: qs,
+      checking: String(d.checking || "").trim(),
+    };
+  }
+  function strs(v) { return (Array.isArray(v) ? v : v ? [v] : []).map((x) => String(x).trim()).filter(Boolean); }
+  function normSummary(d) {
+    return { cc: String(d.cc || "").trim(), hpi: String(d.hpi || "").trim(), positives: strs(d.positives), negatives: strs(d.negatives), uncertain: strs(d.uncertain), pmh: String(d.pmh || "").trim(), alerts: strs(d.alerts) };
+  }
+
+  // ---------- flow ----------
+  async function nextRound() {
+    $("netBox").hidden = true;
+    const n = S.rounds.length + 1;
+    setLoading(n === 1 ? "正在準備問題…（大約 20 到 40 秒）" : "正在整理下一組問題…（大約 20 到 40 秒）");
+    try {
+      const r = normRound(await ask(roundPrompt(n), "intake"));
+      setLoading("");
+      if (r.emergency) { S.emergency = r.message || "你的狀況可能需要馬上處理。"; return finish(); }
+      if (r.done || !r.questions.length) return finish();
+      S.current = { n, questions: r.questions, answers: r.questions.map(() => null), checking: r.checking };
+      renderAsk();
+    } catch (e) {
+      setLoading("");
+      showNetErr(e, nextRound);
+    }
+  }
+  async function finish() {
+    $("netBox").hidden = true;
+    $("stepAsk").hidden = true;
+    S.done = true;
+    setLoading("正在把你的回答整理給醫師…");
+    try { S.summary = normSummary(await ask(summaryPrompt(), "intake_summary")); } catch (_) { S.summary = null; }
+    setLoading("");
+    renderDone();
+  }
+
+  function onStart() {
+    const err = $("startErr");
+    err.textContent = "";
+    const cc = $("cc").value.trim();
+    const sexBtn = $("sex").querySelector('[aria-pressed="true"]');
+    const hx = [...$("hxChips").querySelectorAll('[aria-pressed="true"]')].map((b) => b.textContent);
+    const hxText = $("hxText").value.trim();
+    if (!cc) { err.textContent = "請先寫下今天哪裡不舒服。"; $("cc").focus(); return; }
+    const pii = piiHit(cc + " " + hxText);
+    if (pii) { err.textContent = `看起來有${pii}，請先刪掉再開始。`; return; }
+    if (!$("consent").checked) { err.textContent = "請先勾選同意。"; return; }
+    checkUrgent(cc + " " + hxText);
+    S = fresh();
+    S.bg = { age: $("age").value.trim(), sex: sexBtn ? sexBtn.textContent : "", cc, hx: [...hx, hxText].filter(Boolean).join("、") };
+    $("stepStart").hidden = true;
+    nextRound();
+  }
+  function onSend() {
+    const c = S.current;
+    const err = $("askErr");
+    err.textContent = "";
+    let missing = 0;
+    $("qs").querySelectorAll(".q").forEach((el, i) => {
+      const ok = !!(c.answers[i] && c.answers[i].answer);
+      el.classList.toggle("missing", !ok);
+      if (!ok) missing++;
+    });
+    if (missing) { err.textContent = `還有 ${missing} 題沒有回答。不知道的話可以按「不確定」或「跳過」。`; const m = $("qs").querySelector(".q.missing"); if (m) m.scrollIntoView({ block: "center", behavior: "smooth" }); return; }
+    const typed = c.answers.map((a) => (a.note || "") + " " + (a.typed ? a.answer : "")).join(" ");
+    const pii = piiHit(typed);
+    if (pii) { err.textContent = `回答裡看起來有${pii}，請先刪掉。`; return; }
+    checkUrgent(typed);
+    S.rounds.push(c);
+    S.current = null;
+    $("stepAsk").hidden = true;
+    if (S.rounds.length >= MAX_ROUNDS) finish(); else nextRound();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  // ---------- rendering ----------
+  function renderAsk() {
+    const c = S.current;
+    $("roundLabel").textContent = `第 ${c.n} 組（最多 ${MAX_ROUNDS} 組）`;
+    $("askErr").textContent = "";
+    $("qs").replaceChildren(...c.questions.map((q, i) => renderQuestion(q, i)));
+    $("stepAsk").hidden = false;
+    $("stepAsk").scrollIntoView({ block: "start", behavior: "smooth" });
+  }
+  function renderQuestion(q, i) {
+    const c = S.current;
+    const set = (answer, typed) => { c.answers[i] = { answer, note: (c.answers[i] && c.answers[i].note) || "", typed: !!typed }; };
+    const wrap = h("div", { class: "q" }, h("div", { class: "qt" }, h("span", { class: "n", text: `${i + 1}.` }), q.text));
+    const pick = (group, btn, value) => {
+      for (const b of group.querySelectorAll("button")) b.setAttribute("aria-pressed", b === btn ? "true" : "false");
+      set(value);
+      wrap.classList.remove("missing");
+    };
+    if (q.type === "yn") {
+      const g = h("div", { class: "yn" });
+      for (const v of ["是", "否", "不確定"]) g.append(h("button", { type: "button", "aria-pressed": "false", onclick: (e) => pick(g, e.currentTarget, v) }, v));
+      const note = h("input", { type: "text", class: "extra", placeholder: "想補充可以寫在這裡（可留空）", oninput: (e) => { if (c.answers[i]) c.answers[i].note = e.target.value.trim(); else c.answers[i] = { answer: "", note: e.target.value.trim() }; } });
+      wrap.append(g, note);
+    } else if (q.type === "scale") {
+      const g = h("div", { class: "scale" });
+      for (let v = 0; v <= 10; v++) g.append(h("button", { type: "button", "aria-pressed": "false", onclick: (e) => pick(g, e.currentTarget, `${v} 分`) }, String(v)));
+      g.append(h("button", { type: "button", "aria-pressed": "false", onclick: (e) => pick(g, e.currentTarget, "不確定") }, "不確定"));
+      wrap.append(g, h("div", { class: "scale-hint" }, h("span", { text: "0 完全不會" }), h("span", { text: "10 最嚴重" })));
+    } else {
+      const ta = h("textarea", { rows: "2", placeholder: "請在這裡描述", oninput: (e) => { const v = e.target.value.trim(); c.answers[i] = v ? { answer: v, note: "", typed: true } : null; if (v) wrap.classList.remove("missing"); } });
+      const skip = h("button", { type: "button", class: "skip", onclick: () => { ta.value = ""; c.answers[i] = { answer: "跳過（不知道）", note: "" }; wrap.classList.remove("missing"); skip.textContent = "已選擇跳過（不知道）"; } }, "不知道，跳過");
+      wrap.append(ta, skip);
+    }
+    return wrap;
+  }
+  function recordText() {
+    const b = S.bg, s = S.summary;
+    const L = [`【看診前問診紀錄】${new Date().toLocaleString("zh-TW", { hour12: false })}`, `年齡：${b.age || "未填"}；性別：${b.sex || "未填"}`];
+    if (S.emergency) L.push(`⚠ 急症攔截：${S.emergency}`);
+    if (s) {
+      if (s.alerts.length) L.push("需要優先注意：" + s.alerts.join("；"));
+      L.push("主訴：" + (s.cc || b.cc));
+      if (s.hpi) L.push("現病史：" + s.hpi);
+      if (s.positives.length) L.push("相關陽性：" + s.positives.join("、"));
+      if (s.negatives.length) L.push("相關陰性：" + s.negatives.join("、"));
+      if (s.uncertain.length) L.push("病人不確定或未回答：" + s.uncertain.join("、"));
+      L.push("過去病史、用藥、過敏：" + (s.pmh || b.hx || "未提供"));
+    } else {
+      L.push("主訴：" + b.cc, "過去病史、用藥、過敏：" + (b.hx || "未提供"), "（AI 整理沒有成功，以下為原始問答）");
+    }
+    L.push("", "【原始問答】", qaText(), "", "（AI 整理，只包含病人的回答，請醫師自行確認）");
+    return L.join("\n");
+  }
+  function renderDone() {
+    const msg = $("doneMsg");
+    if (S.emergency) {
+      msg.className = "card urgent big";
+      msg.replaceChildren(h("p", { text: "請立刻告訴櫃台或護理人員。" }), h("p", { style: "margin-top:8px;font-size:17px;font-weight:500", text: S.emergency }));
+    } else {
+      msg.className = "card thanks";
+      msg.replaceChildren(h("p", { style: "font-weight:700;font-size:19px", text: "問診完成，謝謝你！" }), h("p", { style: "margin-top:6px", text: "請在候診區稍候，看診時醫師會跟你說明。等待時如果覺得更不舒服，請隨時告訴櫃台。" }));
+    }
+    $("record").textContent = recordText();
+    $("stepDone").hidden = false;
+    $("stepDone").scrollIntoView({ block: "start", behavior: "smooth" });
+  }
+
+  // ---------- hand-over to the workbench on this device ----------
+  function handoff() {
+    const b = S.bg, s = S.summary;
+    const parts = [];
+    if (S.emergency) parts.push(`⚠ 預問診急症攔截：${S.emergency}`);
+    if (s && s.alerts.length) parts.push("預問診提醒：" + s.alerts.join("；"));
+    if (s && s.hpi) parts.push(s.hpi);
+    if (s && s.positives.length) parts.push("相關陽性：" + s.positives.join("、"));
+    if (s && s.negatives.length) parts.push("相關陰性：" + s.negatives.join("、"));
+    if (s && s.uncertain.length) parts.push("病人不確定或未回答：" + s.uncertain.join("、"));
+    parts.push("【病人預問診原始回答】\n" + qaText());
+    const rec = { v: 1, at: Date.now(), age: b.age, sex: b.sex, cc: (s && s.cc) || b.cc, hpi: parts.join("\n"), pmh: [b.hx, s && s.pmh].filter(Boolean).join("；"), emergency: S.emergency };
+    try { localStorage.setItem(HANDOFF_KEY, JSON.stringify(rec)); }
+    catch (_) { alert("這台裝置不能暫存資料，請改用「複製紀錄」，再貼到工作台。"); return; }
+    S = fresh(); // the record now lives only in the hand-over slot
+    location.href = "/ddx#intake";
+  }
+  function onCopy() {
+    const text = recordText();
+    const ok = () => { $("copyBtn").textContent = "已複製"; setTimeout(() => { $("copyBtn").textContent = "複製紀錄"; }, 1500); };
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(ok, () => window.prompt("請複製以下內容", text));
+    else window.prompt("請複製以下內容", text);
+  }
+  function onNext() {
+    if (!confirm("確定要清除這位病人的回答，換下一位嗎？")) return;
+    S = fresh();
+    $("age").value = ""; $("cc").value = ""; $("hxText").value = ""; $("consent").checked = false;
+    for (const b of document.querySelectorAll("#sex button, #hxChips button")) b.setAttribute("aria-pressed", "false");
+    $("kwUrgent").hidden = true;
+    $("stepDone").hidden = true; $("stepAsk").hidden = true; $("netBox").hidden = true;
+    $("stepStart").hidden = false;
+    window.scrollTo({ top: 0 });
+  }
+
+  // ---------- setup ----------
+  $("sex").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    for (const x of $("sex").children) x.setAttribute("aria-pressed", x === b ? "true" : "false");
+  });
+  $("ccChips").replaceChildren(...CC_TERMS.map((t) => h("button", { type: "button", onclick: () => {
+    const ta = $("cc");
+    if (!ta.value.includes(t)) ta.value = ta.value.trim() ? ta.value.replace(/[、，,\s]+$/, "") + "、" + t : t;
+    checkUrgent(ta.value);
+  } }, t)));
+  $("hxChips").replaceChildren(...HX_TERMS.map((t) => h("button", { type: "button", "aria-pressed": "false", onclick: (e) => {
+    const b = e.currentTarget;
+    b.setAttribute("aria-pressed", b.getAttribute("aria-pressed") === "true" ? "false" : "true");
+  } }, t)));
+  $("cc").addEventListener("input", (e) => checkUrgent(e.target.value));
+  $("startBtn").addEventListener("click", onStart);
+  $("sendBtn").addEventListener("click", onSend);
+  $("retryBtn").addEventListener("click", () => { $("netBox").hidden = true; if (retry) retry(); });
+  $("handoffBtn").addEventListener("click", handoff);
+  $("copyBtn").addEventListener("click", onCopy);
+  $("nextBtn").addEventListener("click", onNext);
+  window.addEventListener("beforeunload", (e) => { if (S.bg && !S.done && (S.rounds.length || S.current)) { e.preventDefault(); e.returnValue = ""; } });
+})();
+</script>
+</body>
+</html>
