@@ -810,7 +810,8 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       missed_differentials: arr(raw.missed_differentials).filter((m) => m && typeof m === "object").map((m) => ({ name: str(m.name), why: str(m.why), cant_miss: truthy(m.cant_miss) })).filter((m) => m.name).slice(0, 4),
       overcalled: arr(raw.overcalled).filter((m) => m && typeof m === "object").map((m) => ({ name: str(m.name), why: str(m.why) })).filter((m) => m.name).slice(0, 4),
       bias_flags: arr(raw.bias_flags).filter((b) => b && typeof b === "object").map((b) => ({ bias: pick(b.bias, BIASES, "其他"), note: str(b.note) })).filter((b) => b.note).slice(0, 5),
-      key_question: str(raw.key_question),
+      // the model sometimes repeats the label inside the value
+      key_question: str(raw.key_question).replace(/^現在最該(做|問)的(一件)?事(情)?\s*[：:]\s*/, ""),
     };
   }
   function normComm(raw) {
@@ -1212,6 +1213,13 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
   }
 
   // ---------- progress ----------
+  // On a phone the results sit below a long form: bring the progress, then the new round, into view.
+  function scrollToResults(selector) {
+    requestAnimationFrame(() => {
+      const el = document.querySelector(selector);
+      if (el) try { el.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (_) { /* older browsers */ }
+    });
+  }
   function startProgress(step) {
     stopProgressTimer();
     progress = { step, startedAt: Date.now(), chars: 0, timer: setInterval(paintProgressNote, 1000) };
@@ -1239,6 +1247,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     renderAvailability();
     ctl = new AbortController();
     startProgress(1);
+    scrollToResults("#reasonOut .progress");
     let committed = false;
     try {
       const prompt = buildReasonPrompt(base, newInfo || "");
@@ -1258,6 +1267,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       pendingNew = false;
       if (kind === "follow") $("followText") && ($("followText").value = "");
       setProgressStep(2);
+      scrollToResults("#reasonOut .round-head");
       await runCritic(round);
     } catch (e) {
       if (!(e && e.code === "cancelled")) { reasonError = errorCopy(e); handlePermanent(e); }
