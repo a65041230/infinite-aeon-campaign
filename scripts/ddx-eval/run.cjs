@@ -123,7 +123,8 @@ function extractResult() {
   const failed = [...out.querySelectorAll('.notice-flag')].map((x) => x.textContent.replace(/\s+/g, ' ').trim()).filter((t) => /沒有完成/.test(t)).join(' / ');
   const av = document.querySelector('#availPanel');
   const availPanel = av && !av.hidden ? av.textContent.replace(/\s+/g, ' ').trim().slice(0, 200) : '';
-  return { cards, steps, critic, verdict, meta, failed, availPanel, all: out.textContent };
+  const cats = ((out.querySelector('.cats') || {}).textContent || '').replace(/\s+/g, ' ').trim();
+  return { cards, steps, critic, verdict, meta, failed, availPanel, cats, all: out.textContent };
 }
 
 function scoreRun(caseDef, data) {
@@ -147,9 +148,14 @@ function scoreRun(caseDef, data) {
     const bre = new RegExp(caseDef.expect.bedside, 'i');
     bedsideOk = data.cards.some((c) => bre.test(c.text)) || data.steps.some((s) => bre.test(s));
   }
+  // expect.categories: each label passes when its pattern appears in the 分類思考 section.
+  const categories = Array.isArray(caseDef.expect && caseDef.expect.categories)
+    ? caseDef.expect.categories.map((e) => ({ label: e.label, pass: new RegExp(e.pattern, 'i').test(data.cats || '') }))
+    : null;
   const served = data.meta.includes('·') ? data.meta.split('·').pop().trim() : '';
   return {
     expectations,
+    categories,
     bedside_ok: bedsideOk,
     simplified: (data.all.match(SIMPLIFIED) || []).length,
     served_model: served || '(unknown)',
@@ -203,7 +209,7 @@ async function runJob(browser, opts, caseDef, model, run) {
       served_model: scores.served_model,
       run,
       secs,
-      scores: { expectations: scores.expectations, bedside_ok: scores.bedside_ok, simplified: scores.simplified },
+      scores: { expectations: scores.expectations, categories: scores.categories, bedside_ok: scores.bedside_ok, simplified: scores.simplified },
       verdict: data.verdict,
       problems,
       meta: data.meta,
@@ -224,7 +230,7 @@ async function runJob(browser, opts, caseDef, model, run) {
       served_model: '(error)',
       run,
       secs,
-      scores: { expectations: failedExpectations(caseDef), bedside_ok: null, simplified: 0 },
+      scores: { expectations: failedExpectations(caseDef), categories: null, bedside_ok: null, simplified: 0 },
       verdict: '(none)',
       problems: [`error: ${msg}`, ...pageErrors],
       meta: '',
@@ -252,8 +258,12 @@ function formatRun(r) {
     }).join('; ')
     : '-';
   const bs = r.scores.bedside_ok === null ? '-' : r.scores.bedside_ok ? 'yes' : 'no';
+  const cats = r.scores.categories
+    ? `categories ${r.scores.categories.filter((c) => c.pass).length}/${r.scores.categories.length}` +
+      (r.scores.categories.some((c) => !c.pass) ? ` (missing: ${r.scores.categories.filter((c) => !c.pass).map((c) => c.label).join(', ')})` : '')
+    : 'categories -';
   const problems = r.problems.length ? r.problems.join(' / ') : 'none';
-  return [r.case, r.served_model, r.run, r.secs, exps, `bedside ok: ${bs}`, `simplified chars: ${r.scores.simplified}`, r.verdict, problems].join(' | ');
+  return [r.case, r.served_model, r.run, r.secs, exps, cats, `bedside ok: ${bs}`, `simplified chars: ${r.scores.simplified}`, r.verdict, problems].join(' | ');
 }
 
 function printSummary(results, cases, models) {
@@ -268,6 +278,10 @@ function printSummary(results, cases, models) {
       for (const label of labels) {
         const passes = group.filter((r) => r.scores.expectations.some((e) => e.label === label && e.pass)).length;
         console.log(`  ${label}: ${passes}/${group.length}`);
+      }
+      for (const e of (c.expect && c.expect.categories) || []) {
+        const ok = group.filter((r) => (r.scores.categories || []).some((x) => x.label === e.label && x.pass)).length;
+        console.log(`  category ${e.label}: ${ok}/${group.length}`);
       }
       if (c.expect && c.expect.bedside) {
         const ok = group.filter((r) => r.scores.bedside_ok === true).length;

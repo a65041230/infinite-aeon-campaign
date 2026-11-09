@@ -164,6 +164,11 @@ legend { font-weight: 500; font-size: 14px; padding: 0; margin-bottom: 6px; }
 .fold { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 .fold > summary { cursor: pointer; padding: 10px 12px; font-weight: 600; font-size: 14px; }
 .fold > .fold-body { padding: 0 12px 12px; }
+.cats { display: grid; gap: 8px; }
+.cat { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--surface-2); }
+.cat-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cat-cands { margin: 4px 0 0; font-size: 14px; line-height: 1.55; }
+.cat-screen { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
 .dx-group { font-weight: 700; font-size: 14px; margin: 14px 0 6px; }
 .dx { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; background: var(--surface); min-width: 0; }
 .dx[data-closed="true"] { background: var(--surface-2); }
@@ -376,7 +381,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
         <li>分析大約需要一到三分鐘，完成後會自動進行反方審查。反方審查漏掉的診斷會自動加入鑑別清單。</li>
         <li>你可以直接修改每個診斷的狀態（例如改成「已排除」），下一輪會以你的判斷為準。</li>
         <li>有新的病史、檢查或檢驗結果時，在結果下方的「下一輪」輸入，按「更新分析」。連續兩輪沒有進展時，頁面會提醒你考慮會診、轉診或安排追蹤。</li>
-        <li>分析與反方審查會對照「主訴安全網」：25 個常見主訴各自必須排除的診斷，目前是醫師審核中的草稿（<a href="/ddx/safety-net.html" target="_blank" rel="noopener">查看清單</a>）。</li>
+        <li>分析與反方審查會對照「主訴安全網」：26 個常見主訴各自必須排除的診斷，目前是醫師審核中的草稿（<a href="/ddx/safety-net.html" target="_blank" rel="noopener">查看清單</a>）。</li>
         <li>「複製摘要」可以貼到病歷草稿；「存檔」把整份紀錄存成檔案，下次用「開啟存檔」接著分析。</li>
       </ol>
       <h3>溝通與風險</h3>
@@ -466,6 +471,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
   const STATUSES = ["待評估", "檢查中", "已排除", "已確立", "擱置"];
   const LIKELIHOODS = ["高", "中", "低"];
   const STEP_TYPES = ["問診", "理學檢查", "檢驗", "影像", "處置", "轉介", "衛教"];
+  const CAT_VERDICTS = ["優先篩檢", "需要篩檢", "可能性低", "資料不足"];
   const VERDICTS = ["同意", "部分同意", "需重新評估"];
   const BIASES = ["錨定", "過早收斂", "診斷遮蔽", "可得性偏誤", "確認偏誤", "其他"];
   const TIER_LABEL = { complex: "最強模型", default: "標準模型", quick: "快速模型" };
@@ -800,6 +806,9 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       taiwan_notes: strs(raw.taiwan_notes).slice(0, 6),
       escalation: str(raw.escalation),
       safety_net_used: strs(raw.safety_net_used).slice(0, 6),
+      categories: arr(raw.categories).filter((c) => c && typeof c === "object").map((c) => ({
+        category: str(c.category), candidates: strs(c.candidates).slice(0, 8), screen: str(c.screen), verdict: pick(c.verdict, CAT_VERDICTS, "需要篩檢"),
+      })).filter((c) => c.category).slice(0, 12),
     };
   }
   function normCritic(raw) {
@@ -915,6 +924,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       "每個病例都要檢查的高風險條件：" + SAFETY_NET.general.map((g) => g.text).join(" ")];
     for (const c of hits) {
       L.push(`◆ ${c.name}（病例中出現：${c.synonyms.filter((w) => text.includes(w)).join("、")}）`);
+      if ((c.categories || []).length) L.push(`  建議分類：${c.categories.join("；")}`);
       for (const m of c.mustRuleOut) L.push(`  - ${m.dx}：${m.check}`);
       if (c.highRisk.length) L.push(`  高風險情境：${c.highRisk.join("、")}`);
     }
@@ -949,6 +959,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
         (d.dropped ? "｜上一輪未提及" : ""));
     }
     if (last.analysis && last.analysis.data_gaps.length) L.push("【上一輪資料缺口】" + last.analysis.data_gaps.join("；"));
+    if (last.analysis && (last.analysis.categories || []).length) L.push("【上一輪分類思考】" + last.analysis.categories.map((c) => `${c.category}：${c.verdict}`).join("；"));
     if (last.critic) L.push(`【上一輪反方審查】最大風險：${last.critic.biggest_risk || "無"}；關鍵問題：${last.critic.key_question || "無"}`);
     L.push(`連續沒有進展的輪數：${s.stall}`);
     return L.join("\n");
@@ -963,9 +974,9 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       "【推理規則】",
       "1. 只使用下面病例中有的資料，不要補寫病史、數值或檢查結果。資料不足的地方列入 data_gaps。",
       "2. 先找紅旗：需要立即處置、轉急診或不能等的狀況列在 red_flags；沒有就給空陣列。",
-      "3. 先做器官系統掃描：依神經、心血管、呼吸、代謝與內分泌、感染、腸胃與腹部、泌尿與婦產、藥物與毒物、眼耳鼻喉，逐一想過哪些原因會造成這個表現、而且漏掉會危及病人。症狀所在的器官不一定是病因，例如上腹痛可能是心肌梗塞、頭痛可能是一氧化碳中毒。這一步在心裡做，不用寫出來。",
+      "3. 先用大分類展開，寫在 categories。全身性或不具體的主訴（體重減輕、倦怠、長期發燒、貧血、水腫等）用病因大類：腫瘤、內分泌與代謝、腸胃與吸收、感染、器官衰竭（心肺腎肝）、精神與神經、藥物與物質、社會與營養；局部的主訴用器官系統：神經、心血管、呼吸、代謝內分泌、感染、腸胃腹部、泌尿婦產、藥物毒物、眼耳鼻喉。每類列出代表疾病、怎麼篩檢、目前判斷；可能性低的類別也要列出並說明，不能整類跳過。症狀所在的器官不一定是病因，例如上腹痛可能是心肌梗塞、頭痛可能是一氧化碳中毒。",
       "4. 危險因子要對應到所有相關器官：高血壓、糖尿病、抽菸、高血脂、心房顫動、高齡等血管危險因子，要同時考慮心臟、腦、主動脈與腸繫膜等所有血管床的急症；免疫低下要考慮非典型或嚴重感染；有懷孕可能要考慮婦產急症。",
-      "5. 鑑別診斷同時涵蓋「最可能」與「必須排除」的診斷，共 4 到 8 個，不要超過 8 個。「必須排除」指機率不一定高、但漏掉會危及病人的診斷（cant_miss 設為 true），不能因為機率低就省略；必須排除的診斷依「危險程度乘上與本例的相關性」排序，最需要先排除的放最前面。可能性只用「高」「中」「低」，不要用百分比或分數。",
+      "5. 鑑別診斷同時涵蓋「最可能」與「必須排除」的診斷，共 4 到 8 個，不要超過 8 個。「必須排除」指機率不一定高、但漏掉會危及病人的診斷（cant_miss 設為 true），不能因為機率低就省略；必須排除的診斷依「危險程度乘上與本例的相關性」排序，最需要先排除的放最前面。鑑別清單是從分類中挑出最需要處理的診斷：廣度放在 categories，不要因為清單有上限就漏掉整類。可能性只用「高」「中」「低」，不要用百分比或分數。",
       "6. 每個必須排除的診斷，next_step 都要寫出能區分或排除它的具體床邊檢查、檢驗或影像，不要只寫「神經學檢查」「心臟評估」這類籠統說法（例如寫「每 15 到 30 分鐘重做 12 導程心電圖」）。這些步驟在 next_steps 裡排在前面。",
       "7. 病史可靠度或對病人動機的疑慮，不能降低任何器質性診斷的可能性；它只決定哪些資料需要用客觀方式查證。",
       "8. 必須排除的診斷只能用客觀證據排除，不能列為「擱置」。",
@@ -984,6 +995,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       "只回覆一個 JSON 物件，不要任何其他文字。欄位如下：",
       JSON.stringify({
         safety_net_used: ["本例對照過的安全網主訴名稱"],
+        categories: [{ category: "大分類", candidates: ["代表疾病"], screen: "怎麼篩檢", verdict: "優先篩檢" }],
         red_flags: [{ finding: "紅旗發現", action: "建議的立即處置" }],
         problems: { subjective: ["病人陳述（S）"], objective: ["客觀資料（O）"] },
         differentials: [{ name: "診斷名稱", likelihood: "高", cant_miss: false, status: "待評估", supporting: ["支持的證據"], against: ["反對的證據"], next_step: "能區分這個診斷的下一步", would_change: "什麼結果會推翻或大幅改變這個判斷", status_reason: "狀態的理由", mimics: [{ name: "只在可能性高或已確立時填：長得像它、需要區分的診斷", how: "怎麼區分" }], etiology: "只在可能性高或已確立時填：要追的病因方向" }],
@@ -996,7 +1008,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
         escalation: null,
         summary: "列完上面各欄之後，再用一句話總結目前的判斷與下一步重點",
       }, null, 2),
-      "next_steps 依優先順序排列，type 只用：問診、理學檢查、檢驗、影像、處置、轉介、衛教。",
+      "next_steps 依優先順序排列，type 只用：問診、理學檢查、檢驗、影像、處置、轉介、衛教。categories 的 verdict 只用：優先篩檢、需要篩檢、可能性低、資料不足。",
       "",
       "【病例資料】",
       caseBlock(s),
@@ -1017,6 +1029,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       cross_specialty: a.cross_specialty || null,
       lab_paradox: a.lab_paradox || null,
       next_steps: a.next_steps.map((x) => x.item),
+      categories: (a.categories || []).map((c) => `${c.category}（${c.verdict}）：${c.candidates.join("、")}`),
     };
     return [
       "你是資深主治醫師，負責對下面這份鑑別診斷做反方審查，專門找出可能的錯誤。使用這個工具的是醫師本人。",
@@ -1033,6 +1046,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       "6. 是否有證據不足卻給了高可能性的過度推論。",
       "7. 每個必須排除的診斷，是否都有能區分或排除它的具體步驟，而且排在前面。",
       "8. 是否拿「不確定」、沒問到的資料，或「另一個診斷已成立」當作排除理由；可能性高或已確立的診斷，是否想過長得像它的病。",
+      "9. 分類是否完整：有沒有整類可能原因沒考慮（例如腫瘤、內分泌、感染、精神、藥物、社會因素），或高風險的類別被判為可能性低卻沒有理由。",
       "",
       "【規則】",
       "只依據病例資料，不要捏造。找不到問題就如實說找不到，不要為了挑錯而挑錯。missed_differentials 只列真的值得加入的診斷，最多 4 個，且不要重複分析中已有的診斷。使用繁體中文。",
@@ -1366,6 +1380,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     const L = [`【Doubt-Driven 鑑別工作台・第 ${r.n} 輪】${r.at}`, `主訴：${state.case.cc}`];
     if (r.analysis.summary) L.push(`總結：${r.analysis.summary}`);
     if (r.analysis.red_flags.length) L.push("紅旗：" + r.analysis.red_flags.map((f) => f.finding + (f.action ? `（${f.action}）` : "")).join("；"));
+    if ((r.analysis.categories || []).length) L.push("分類思考：" + r.analysis.categories.map((c) => `${c.category}（${c.verdict}）`).join("、"));
     L.push("鑑別診斷：");
     for (const d of [...state.diffs.filter((x) => x.cant_miss), ...state.diffs.filter((x) => !x.cant_miss)]) L.push(`- ${d.name}（可能性 ${d.likelihood}／${d.status}${d.cant_miss ? "／必須排除" : ""}）`);
     if (r.analysis.next_steps.length) { L.push("下一步："); r.analysis.next_steps.forEach((s, i) => L.push(`${i + 1}. [${s.type}] ${s.item}`)); }
@@ -1502,11 +1517,12 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     return rows.length ? h("div", { class: "glance" }, ...rows) : null;
   }
   // Secondary sections stay folded; which ones the doctor opened survives re-renders.
-  const foldOpen = new Set();
+  const foldOpen = new Set(["categories"]);
   function fold(key, title, body) {
     return h("details", { class: "fold", open: foldOpen.has(key) ? true : null, ontoggle: (e) => { if (e.target.open) foldOpen.add(key); else foldOpen.delete(key); } },
       h("summary", { text: title }), h("div", { class: "fold-body" }, body));
   }
+  const CAT_CHIP = { "優先篩檢": "chip chip-flag", "需要篩檢": "chip chip-warn", "可能性低": "chip", "資料不足": "chip" };
   function renderRound(r) {
     const a = r.analysis;
     const mustRule = state.diffs.filter((d) => d.cant_miss);
@@ -1527,6 +1543,11 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
         h("div", { class: "so" },
           h("div", null, h("p", null, h("span", { class: "so-k", text: "S" }), "病人陳述"), list(a.problems.subjective)),
           h("div", null, h("p", null, h("span", { class: "so-k", text: "O" }), "客觀資料"), list(a.problems.objective)))) : null,
+      (a.categories || []).length ? fold("categories", `分類思考（${a.categories.length} 類）`,
+        h("div", { class: "cats" }, a.categories.map((c) => h("div", { class: "cat" },
+          h("div", { class: "cat-head" }, h("b", { text: c.category }), h("span", { class: CAT_CHIP[c.verdict] || "chip" }, c.verdict)),
+          c.candidates.length ? h("p", { class: "cat-cands", text: c.candidates.join("、") }) : null,
+          c.screen ? h("p", { class: "cat-screen", text: "篩檢：" + c.screen }) : null)))) : null,
       h("section", null, h("p", { class: "section-k", text: "Differential · 鑑別診斷" }),
         (a.safety_net_used || []).length ? h("p", { class: "hint", style: "margin-bottom:6px" }, "已對照主訴安全網：", a.safety_net_used.join("、"), "（", h("a", { href: "/ddx/safety-net.html", target: "_blank", rel: "noopener" }, "清單草稿"), "）") : null,
         mustRule.length ? h("p", { class: "dx-group", text: "必須先排除" }) : null,

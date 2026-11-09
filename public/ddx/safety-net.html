@@ -230,6 +230,15 @@ main.wrap { padding-top: 20px; padding-bottom: 40px; }
     syn.appendChild(document.createTextNode((c.synonyms || []).join(SEP)));
     card.appendChild(syn);
 
+    if ((c.categories || []).length) {
+      var cats = make("div", "row");
+      cats.appendChild(make("span", "row-label", "建議分類："));
+      var cl = make("ul");
+      c.categories.forEach(function (t) { cl.appendChild(make("li", null, t)); });
+      cats.appendChild(cl);
+      card.appendChild(cats);
+    }
+
     var ol = make("ol", "dx-list");
     (c.mustRuleOut || []).forEach(function (m, i) {
       var li = make("li");
