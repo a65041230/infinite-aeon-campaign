@@ -114,10 +114,12 @@ function extractResult() {
   const out = document.querySelector('#reasonOut');
   const cards = [...out.querySelectorAll('.dx-list > *')].map((c) => ({
     name: ((c.querySelector('.dx-name') || {}).textContent || '').trim(),
-    must: [...c.querySelectorAll('.chip-flag')].some((x) => x.textContent.trim() === '必須排除'),
+    // newer pages carry data-must/data-urgency on the card; older ones a 必須排除 chip
+    must: c.dataset.must === 'true' || [...c.querySelectorAll('.chip-flag')].some((x) => x.textContent.trim() === '必須排除'),
+    urgent: c.dataset.urgency === '立即',
     text: c.textContent.replace(/\s+/g, ' ').trim(),
   }));
-  const steps = [...out.querySelectorAll('.steps li')].map((l) => l.textContent.replace(/\s+/g, ' ').trim());
+  const steps = [...out.querySelectorAll('.steps li, .todo-list .todo')].map((l) => l.textContent.replace(/\s+/g, ' ').trim());
   const critic = ((out.querySelector('.critic') || {}).textContent || '').replace(/\s+/g, ' ').trim();
   const verdict = ((out.querySelector('.critic .chip') || {}).textContent || '').trim() || '(none)';
   const meta = ((out.querySelector('.round-head .meta') || {}).textContent || '').trim();
@@ -163,6 +165,7 @@ function scoreRun(caseDef, data) {
     simplified: (data.all.match(SIMPLIFIED) || []).length,
     served_model: served || '(unknown)',
     must_count: musts.length,
+    urgent_count: data.cards.some((c) => c.urgent) ? data.cards.filter((c) => c.urgent).length : null,
     max_must: maxMust,
     must_over: maxMust !== null && musts.length > maxMust,
   };
@@ -243,6 +246,7 @@ async function runJob(browser, opts, caseDef, model, run) {
         bedside_ok: scores.bedside_ok,
         simplified: scores.simplified,
         must_count: scores.must_count,
+        urgent_count: scores.urgent_count,
         max_must: scores.max_must,
         must_over: scores.must_over,
       },
@@ -266,7 +270,7 @@ async function runJob(browser, opts, caseDef, model, run) {
       served_model: '(error)',
       run,
       secs,
-      scores: { expectations: failedExpectations(caseDef), categories: null, bedside_ok: null, simplified: 0, must_count: null, max_must: null, must_over: false },
+      scores: { expectations: failedExpectations(caseDef), categories: null, bedside_ok: null, simplified: 0, must_count: null, urgent_count: null, max_must: null, must_over: false },
       verdict: '(none)',
       problems: [`error: ${msg}`, ...pageErrors],
       meta: '',
@@ -296,7 +300,7 @@ function formatRun(r) {
   const mc = r.scores.must_count;
   const must = typeof mc !== 'number'
     ? 'must: -'
-    : `must: ${mc}` + (r.scores.must_over ? ` WARN(>${r.scores.max_must})` : '');
+    : `must: ${mc}` + (typeof r.scores.urgent_count === 'number' ? ` (急 ${r.scores.urgent_count})` : '') + (r.scores.must_over ? ` WARN(>${r.scores.max_must})` : '');
   const bs = r.scores.bedside_ok === null ? '-' : r.scores.bedside_ok ? 'yes' : 'no';
   const cats = r.scores.categories
     ? `categories ${r.scores.categories.filter((c) => c.pass).length}/${r.scores.categories.length}` +
@@ -323,6 +327,8 @@ function printSummary(results, cases, models) {
       if (counts.length) {
         const avg = counts.reduce((a, b) => a + b, 0) / counts.length;
         console.log(`  must-rule-out count: ${Math.min(...counts)}–${Math.max(...counts)} (avg ${avg.toFixed(1)})`);
+        const urg = group.map((r) => r.scores.urgent_count).filter((n) => typeof n === 'number');
+        if (urg.length) console.log(`  marked 立即 (urgent): ${Math.min(...urg)}–${Math.max(...urg)}`);
       }
       const maxMust = c.expect && c.expect.max_must;
       if (Number.isInteger(maxMust)) {
