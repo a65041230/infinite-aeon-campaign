@@ -202,6 +202,17 @@ a.btn { display: inline-block; text-decoration: none; }
 .dx-foot label { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--muted); }
 .dx-foot select { width: auto; padding: 5px 8px; font-size: 13.5px; }
 .dx-warn { color: var(--flag); font-size: 13px; }
+.dx-recheck { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: var(--flag-soft); color: var(--flag); font-size: 13.5px; }
+.dx-recheck .btn { padding: 4px 10px; font-size: 13px; }
+.glance .recheck { color: var(--flag); }
+.intake-card { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--surface-2); display: grid; gap: 6px; font-size: 14px; line-height: 1.55; }
+.intake-card .ic-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.intake-card .ic-head .btn { margin-left: auto; padding: 4px 10px; font-size: 13px; }
+.intake-card .k { color: var(--muted); }
+.intake-card .flag { color: var(--flag); font-weight: 500; }
+.intake-card pre { white-space: pre-wrap; font: inherit; font-size: 13px; margin: 6px 0 0; }
+.intake-card details > summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+#urgentBanner { margin-bottom: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 
 .steps { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 8px; counter-reset: s; }
 .steps li { counter-increment: s; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; align-items: start; }
@@ -298,6 +309,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
 </header>
 
 <main class="wrap">
+  <div id="urgentBanner" class="notice notice-flag" role="alert" hidden></div>
   <!-- Clinical reasoning -->
   <section id="view-reason" role="tabpanel" aria-labelledby="tab-reason">
     <div class="workspace">
@@ -319,6 +331,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
           </details>
         </div>
         <div id="intakeNotice" class="notice notice-info" role="status" hidden></div>
+        <div id="intakeCard" class="intake-card" hidden></div>
         <div class="grid-4">
           <div class="field"><label for="f-age">年齡</label><input id="f-age" type="number" min="0" max="120" inputmode="numeric" placeholder="歲"></div>
           <div class="field"><label for="f-sex">性別</label>
@@ -606,7 +619,16 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
 
   // ---------- state ----------
   function blankCase() { return { age: "", sex: "", setting: "", reliability: "未評估", cc: "", hpi: "", pmh: "", pe: "", labs: "", thoughts: "" }; }
-  function newState() { return { app: "doubt-driven-ddx", version: 1, isExample: false, case: blankCase(), rounds: [], diffs: [], stall: 0, editsSinceRound: false, confirmed: false }; }
+  function newState() { return { app: "doubt-driven-ddx", version: 1, isExample: false, case: blankCase(), intake: null, rounds: [], diffs: [], stall: 0, editsSinceRound: false, confirmed: false }; }
+  // What the patient answered in the pre-visit interview, kept apart from what the doctor typed or found.
+  function cleanIntake(v) {
+    if (!v || typeof v !== "object") return null;
+    return {
+      num: Math.max(0, Math.floor(Number(v.num) || 0)), at: Number(v.at) || 0, who: str(v.who).slice(0, 20),
+      positives: strs(v.positives).slice(0, 30), negatives: strs(v.negatives).slice(0, 30), uncertain: strs(v.uncertain).slice(0, 30),
+      alerts: strs(v.alerts).slice(0, 3), qa: str(v.qa).slice(0, 10000), emergency: str(v.emergency).slice(0, 500),
+    };
+  }
   function exampleState() {
     const s = newState();
     s.isExample = true;
@@ -835,6 +857,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       verify: arr(raw.verify).map((v) => (v && typeof v === "object" ? { claim: str(v.claim), query: str(v.query) } : { claim: str(v), query: "" })).filter((v) => v.claim).slice(0, 8),
       taiwan_notes: strs(raw.taiwan_notes).slice(0, 6),
       escalation: str(raw.escalation),
+      reopen: arr(raw.reopen).filter((x) => x && typeof x === "object").map((x) => ({ name: str(x.name), why: str(x.why) })).filter((x) => x.name).slice(0, 5),
       safety_net_used: strs(raw.safety_net_used).slice(0, 6),
       categories: arr(raw.categories).filter((c) => c && typeof c === "object").map((c) => ({
         category: str(c.category), candidates: strs(c.candidates).slice(0, 8), screen: str(c.screen), verdict: pick(c.verdict, CAT_VERDICTS, "需要篩檢"),
@@ -846,7 +869,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     return {
       verdict: pick(raw.verdict, VERDICTS, "部分同意"),
       biggest_risk: str(raw.biggest_risk),
-      missed_differentials: arr(raw.missed_differentials).filter((m) => m && typeof m === "object").map((m) => ({ name: str(m.name), why: str(m.why), cant_miss: truthy(m.cant_miss) })).filter((m) => m.name).slice(0, 4),
+      missed_differentials: arr(raw.missed_differentials).filter((m) => m && typeof m === "object").map((m) => ({ name: str(m.name), why: str(m.why), cant_miss: truthy(m.cant_miss), check: str(m.check) })).filter((m) => m.name).slice(0, 4),
       overcalled: arr(raw.overcalled).filter((m) => m && typeof m === "object").map((m) => ({ name: str(m.name), why: str(m.why) })).filter((m) => m.name).slice(0, 4),
       bias_flags: arr(raw.bias_flags).filter((b) => b && typeof b === "object").map((b) => ({ bias: pick(b.bias, BIASES, "其他"), note: str(b.note) })).filter((b) => b.note).slice(0, 5),
       // the model sometimes repeats the label inside the value
@@ -874,6 +897,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     const s = newState();
     for (const k of Object.keys(s.case)) s.case[k] = str(raw.case[k]);
     if (!s.case.reliability) s.case.reliability = "未評估";
+    s.intake = cleanIntake(raw.intake);
     s.rounds = raw.rounds.filter((r) => r && typeof r === "object" && r.analysis).map((r, i) => ({
       n: i + 1, at: str(r.at), newInfo: str(r.newInfo), analysis: normAnalysis(r.analysis),
       critic: r.critic ? normCritic(r.critic) : null, criticError: str(r.criticError), tier: str(r.tier),
@@ -885,6 +909,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       mimics: arr(d.mimics).filter((m) => m && typeof m === "object").map((m) => ({ name: str(m.name), how: str(m.how) })).filter((m) => m.name).slice(0, 5),
       etiology: str(d.etiology),
       source: str(d.source) || "推理", doctorEdited: truthy(d.doctorEdited), dropped: truthy(d.dropped), note: "",
+      recheck: truthy(d.recheck), recheckWhy: str(d.recheckWhy),
     }));
     s.stall = Math.max(0, Math.min(99, Number(raw.stall) || 0));
     s.editsSinceRound = truthy(raw.editsSinceRound);
@@ -894,7 +919,24 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
   }
 
   // ---------- differential bookkeeping ----------
-  function mergeDiffs(prev, incoming, source) {
+  // The doctor's status always wins. When new data seems to contradict a diagnosis the doctor closed,
+  // the status stays as it is and the card asks the doctor to look again.
+  function recheckOf(p, why, modelStatus) {
+    const closed = p.status === "已排除" || p.status === "擱置";
+    if (!p.doctorEdited || !closed) return { recheck: false, recheckWhy: "" };
+    const reopened = why !== undefined || (!!modelStatus && modelStatus !== "已排除" && modelStatus !== "擱置");
+    if (reopened) return { recheck: true, recheckWhy: why || "" };
+    return { recheck: !!p.recheck, recheckWhy: p.recheckWhy || "" };
+  }
+  function sameDx(a, b) {
+    const ka = keyOf(a), kb = keyOf(b);
+    if (!ka || !kb) return false;
+    if (ka === kb) return true;
+    const sa = keyOf(shortName(a)), sb = keyOf(shortName(b));
+    return sa.length >= 3 && sb.length >= 3 && (sa.includes(sb) || sb.includes(sa));
+  }
+  function mergeDiffs(prev, incoming, source, reopen) {
+    const reopenWhy = new Map((reopen || []).map((r) => [keyOf(r.name), r.why]));
     const prevByKey = new Map(prev.map((d) => [keyOf(d.name), d]));
     const seen = new Set();
     const out = [];
@@ -903,23 +945,27 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       if (!k || seen.has(k)) continue;
       seen.add(k);
       const p = prevByKey.get(k);
-      const merged = { ...d, id: p ? p.id : uid(), source: p ? p.source : source, doctorEdited: p ? p.doctorEdited : false, dropped: false, note: "" };
-      if (p && p.doctorEdited) merged.status = p.status;
+      const merged = { ...d, id: p ? p.id : uid(), source: p ? p.source : source, doctorEdited: p ? p.doctorEdited : false, dropped: false, note: "", recheck: false, recheckWhy: "" };
+      if (p && p.doctorEdited) {
+        Object.assign(merged, recheckOf(p, reopenWhy.get(k), d.status));
+        if (merged.recheck && !merged.recheckWhy) merged.recheckWhy = d.status_reason || "";
+        merged.status = p.status;
+      }
       if (merged.cant_miss && merged.status === "擱置") { merged.status = "待評估"; merged.note = "必須排除的診斷不能擱置，已改回待評估。"; }
       out.push(merged);
     }
     for (const p of prev) {
-      if (!seen.has(keyOf(p.name))) out.push({ ...p, dropped: true });
+      if (!seen.has(keyOf(p.name))) out.push({ ...p, dropped: true, ...recheckOf(p, reopenWhy.get(keyOf(p.name)), "") });
     }
     return out;
   }
   function addMissed(s, critic) {
     for (const m of critic.missed_differentials) {
       const k = keyOf(m.name);
-      if (!k || s.diffs.some((d) => keyOf(d.name) === k)) continue;
+      if (!k || s.diffs.some((d) => sameDx(d.name, m.name))) continue;
       s.diffs.push({
         id: uid(), name: m.name, likelihood: "中", cant_miss: m.cant_miss, status: "待評估",
-        supporting: m.why ? [m.why] : [], against: [], next_step: "", would_change: "",
+        supporting: m.why ? [m.why] : [], against: [], next_step: m.check || "", would_change: "",
         status_reason: "由反方審查新增，尚待評估。", source: "反方審查", doctorEdited: false, dropped: false, note: "",
       });
     }
@@ -939,13 +985,35 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
   // keywords appear in the case are given in full, the rest by name only, so a missed keyword match
   // still leaves every entry in view.
   const SAFETY_NET = window.DDX_SAFETY_NET || null;
-  function caseText(s, extra) {
+  // Text used to pick safety-net entries: the chief complaint, what the patient said they have, and what
+  // the doctor wrote, with denied symptoms removed. "沒有頭痛" must not pull in the whole headache list;
+  // an entry that fails to match is still offered to the model by name.
+  // "有沒有" and "會不會" are questions, not denials.
+  const NEG_CUE = /(?<!有)沒有(?!力|辦法|胃口|食慾|精神)|(?<!有)沒(?![有力辦胃食精])|否認|並無|未見|未有|未曾|不曾|(?<!會)不會|(?<!會)不(?=[痛喘暈咳吐燒癢麻腫拉])|無(?![力法精食])|denies|without/i;
+  const TURN_CUE = /但是|但|不過|可是|卻|然而|倒是|只有/;
+  const NEG_LINE = /(→|：|:)\s*(否|正常|陰性|沒做|未做|不確定|跳過|沒有|無)\s*(（[^）]*）)?\s*$/;
+  const NEG_LABEL = /^\s*(相關陰性|病人不確定或未回答|病人回答沒有|病人不確定或沒回答)\s*[：:]/;
+  function positiveMentions(text) {
+    return String(text || "").split(/[。；;\n]/).map((line) => {
+      if (NEG_LINE.test(line) || NEG_LABEL.test(line)) return "";
+      return line.split(/[，,]/).map((clause) => {
+        const m = NEG_CUE.exec(clause);
+        if (!m) return clause;
+        const rest = clause.slice(m.index);
+        const turn = TURN_CUE.exec(rest);
+        return clause.slice(0, m.index) + (turn ? rest.slice(turn.index) : "");
+      }).join("，");
+    }).filter((x) => x.trim()).join("。");
+  }
+  function matchText(s, extra) {
     const c = s.case;
-    return [c.cc, c.hpi, c.pe, c.labs, c.thoughts, ...s.rounds.map((r) => r.newInfo), extra || ""].filter(Boolean).join(" ");
+    const said = s.intake ? [...s.intake.positives, ...s.intake.alerts].join("、") : "";
+    const typed = [c.hpi, c.pe, c.labs, c.thoughts, ...s.rounds.map((r) => r.newInfo), extra || ""].filter(Boolean).join("\n");
+    return [c.cc, said, positiveMentions(typed)].filter(Boolean).join(" ");
   }
   function safetyNetBlock(s, extra, forCritic) {
     if (!SAFETY_NET) return "";
-    const text = caseText(s, extra);
+    const text = matchText(s, extra);
     const hits = SAFETY_NET.complaints.filter((c) => c.synonyms.some((w) => text.includes(w)));
     const L = ["【主訴安全網（醫師審核中的草稿）】",
       forCritic
@@ -969,8 +1037,19 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     L.push(`年齡：${c.age ? c.age + " 歲" : "未提供"}；性別：${c.sex || "未提供"}；就診場景：${c.setting || "未提供"}`);
     L.push(`病史可靠度（醫師評估）：${c.reliability || "未評估"}`);
     L.push(`主訴：${c.cc}`);
-    if (c.hpi) L.push(`現病史：${c.hpi}`);
+    if (c.hpi) L.push(`現病史${s.intake ? "（AI 依病人自填整理）" : ""}：${c.hpi}`);
     if (c.pmh) L.push(`過去病史、用藥、過敏：${c.pmh}`);
+    if (s.intake) {
+      const k = s.intake;
+      L.push(`【病人看診前自填（未經醫師確認）】${k.who ? "填寫者：" + k.who : ""}`);
+      if (k.emergency) L.push(`問診時的急症攔截：${k.emergency}`);
+      if (k.alerts.length) L.push(`預問診提醒：${k.alerts.join("；")}`);
+      if (k.positives.length) L.push(`病人說有：${k.positives.join("、")}`);
+      if (k.negatives.length) L.push(`病人回答沒有：${k.negatives.join("、")}`);
+      if (k.uncertain.length) L.push(`病人不確定或沒回答：${k.uncertain.join("、")}`);
+      if (k.qa) L.push(`原始問答：\n${k.qa}`);
+      L.push("【病人自填內容結束；以下由醫師提供】");
+    }
     if (c.pe) L.push(`理學檢查與生命徵象：${c.pe}`);
     if (c.labs) L.push(`檢驗與影像：${c.labs}`);
     if (c.thoughts) L.push(`醫師目前的想法：${c.thoughts}`);
@@ -1012,14 +1091,15 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       "8. 必須排除的診斷只能用客觀證據排除，不能列為「擱置」。",
       "9. 症狀無法收斂在單一器官系統時，在 cross_specialty 說明應考慮的跨科原因（自體免疫、內分泌、藥物或毒物、罕見疾病）與起手檢查；不需要就填 null。",
       "10. 理學檢查、症狀與檢驗互相矛盾時，在 lab_paradox 優先考慮檢驗干擾、檢體問題或偽陰性，並說明如何驗證；沒有矛盾就填 null。",
-      "11. 狀態只用：待評估、檢查中、已排除、已確立、擱置。已排除的診斷，只有在新資料與排除證據矛盾時才能重新打開，並在 status_reason 說明。標示「醫師已修改」的狀態以醫師為準，不要更動。",
-      "12. 每一輪至少讓一個鑑別往前推進。若「連續沒有進展的輪數」已達 2，請在 escalation 具體建議升級方式（會診、轉診、住院觀察或安排追蹤）；其他情況需要升級時也可以填。",
+      "11. 狀態只用：待評估、檢查中、已排除、已確立、擱置。已排除的診斷，只有在新資料與排除證據矛盾時才能重新打開，並在 status_reason 說明。標示「醫師已修改」的狀態以醫師為準，不要更動；但新資料若與醫師標成「已排除」或「擱置」的診斷矛盾，要把它列在 reopen 並說明哪一項資料矛盾，讓醫師重新確認。沒有就給空陣列。",
+      "12. 只有新資料足以支持時才改變診斷的狀態；沒有足以改變狀態的新資料就維持原狀，並在 data_gaps 指出最能推進判斷的那一項資料，不要為了有進展而勉強排除或確立。若「連續沒有進展的輪數」已達 2，請在 escalation 具體建議升級方式（會診、轉診、住院觀察或安排追蹤）；其他情況需要升級時也可以填。",
       "13. 劑量、診斷標準、藥物交互作用等醫學事實，沒有十足把握就列入 verify，並附英文 PubMed 搜尋關鍵字。不要捏造文獻、指引名稱、年份或網址。",
       "14. 台灣情境：可能是法定傳染病時提醒通報與送驗；涉及管制藥品時提醒查健保雲端藥歷；若提到 ICD-10 代碼，註明需依健保 2023 年版核對。這些放在 taiwan_notes。",
       "15. 使用繁體中文，診斷名稱可附英文。內容精簡，每個欄位一兩句話即可。",
       "16. 排除一個診斷，只能靠該診斷本身高敏感度的檢查或發現為陰性（SnNout）。「不確定」或沒問到的資料不等於陰性，不能拿來排除；也不能因為另一個診斷已成立就排除，兩個病可以並存。",
       "17. 可能性為「高」或狀態為「已確立」的診斷，在 mimics 列出至少 3 個會造成相同表現、需要區分的診斷（附區分重點），在 etiology 寫出接下來要追的病因方向。確立一個診斷不是停止思考的理由。",
       "18. 症狀類主訴，檢查 OPQRST（何時開始、加重或緩解因素、性質、部位與放射、嚴重度 0 到 10、持續或陣發）哪些還沒有，缺的列進 data_gaps。",
+      "19. 標示為「病人看診前自填」的內容是病人自己在問卷上回答的，沒有經過醫師確認。病人回答「沒有」只代表他沒有感覺到或沒有注意到，不等於理學檢查陰性，不能單獨用來排除必須排除的診斷，也不能因此不把它列入。自填內容只能放在 problems.subjective，不能放在 objective。需要醫師當面確認的項目（例如肌力、步態、說話、生命徵象）排進 next_steps。",
       "",
       "【輸出格式】",
       "只回覆一個 JSON 物件，不要任何其他文字。欄位如下：",
@@ -1036,6 +1116,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
         verify: [{ claim: "需要查證的醫學事實", query: "英文 PubMed 搜尋關鍵字" }],
         taiwan_notes: [],
         escalation: null,
+        reopen: [{ name: "與新資料矛盾、但醫師已標成已排除或擱置的診斷名稱", why: "哪一項新資料矛盾" }],
         summary: "列完上面各欄之後，再用一句話總結目前的判斷與下一步重點",
       }, null, 2),
       "next_steps 依優先順序排列，type 只用：問診、理學檢查、檢驗、影像、處置、轉介、衛教。categories 的 verdict 只用：優先篩檢、需要篩檢、可能性低、資料不足。",
@@ -1075,18 +1156,18 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       "5. 是否因為病史可靠度或動機疑慮而低估器質性疾病（診斷遮蔽）。",
       "6. 是否有證據不足卻給了高可能性的過度推論。",
       "7. 每個必須排除的診斷，是否都有能區分或排除它的具體步驟，而且排在前面。",
-      "8. 是否拿「不確定」、沒問到的資料，或「另一個診斷已成立」當作排除理由；可能性高或已確立的診斷，是否想過長得像它的病。",
+      "8. 是否拿「不確定」、沒問到的資料、病人看診前自填的「沒有」，或「另一個診斷已成立」當作排除或降低可能性的理由；可能性高或已確立的診斷，是否想過長得像它的病。",
       "9. 分類是否完整：有沒有整類可能原因沒考慮（例如腫瘤、內分泌、感染、精神、藥物、社會因素），或高風險的類別被判為可能性低卻沒有理由。",
       "",
       "【規則】",
-      "只依據病例資料，不要捏造。找不到問題就如實說找不到，不要為了挑錯而挑錯。missed_differentials 只列真的值得加入的診斷，最多 4 個，且不要重複分析中已有的診斷。使用繁體中文。",
+      "只依據病例資料，不要捏造。找不到問題就如實說找不到，不要為了挑錯而挑錯。missed_differentials 只列真的值得加入的診斷，最多 4 個，且不要重複分析中已有的診斷（同一個病換個說法也算重複）；每一個都要在 check 寫出能區分或排除它的具體床邊檢查、檢驗或影像。使用繁體中文。",
       "",
       "【輸出格式】",
       "只回覆一個 JSON 物件，不要任何其他文字：",
       JSON.stringify({
         verdict: "同意",
         biggest_risk: "這份分析最可能出錯的地方",
-        missed_differentials: [{ name: "診斷名稱", why: "為什麼要考慮", cant_miss: false }],
+        missed_differentials: [{ name: "診斷名稱", why: "為什麼要考慮", cant_miss: false, check: "能區分或排除它的具體檢查" }],
         overcalled: [{ name: "診斷名稱", why: "為什麼可能高估" }],
         bias_flags: [{ bias: "錨定", note: "具體說明" }],
         key_question: "現在最該問或最該做的一件事",
@@ -1286,7 +1367,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
   async function runReason(kind, newInfo) {
     if (busy) return;
     reasonError = "";
-    const base = kind === "new" ? { ...newState(), case: readCaseForm(), confirmed: true } : state;
+    const base = kind === "new" ? { ...newState(), case: readCaseForm(), confirmed: true, intake: state.intake } : state;
     busy = true;
     pendingNew = kind === "new";
     renderAvailability();
@@ -1300,7 +1381,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       const analysis = normAnalysis(res.data);
       if (!analysis.differentials.length) throw { code: "invalid_json" };
       const before = statusMap(base.diffs);
-      base.diffs = mergeDiffs(base.diffs, analysis.differentials, "推理");
+      base.diffs = mergeDiffs(base.diffs, analysis.differentials, "推理", analysis.reopen);
       const round = { n: base.rounds.length + 1, at: nowText(), newInfo: newInfo || "", analysis, critic: null, criticError: "", tier: res.tier };
       if (round.n > 1) base.stall = (madeProgress(before, base.diffs) || base.editsSinceRound) ? 0 : base.stall + 1;
       else base.stall = 0;
@@ -1400,6 +1481,8 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     d.status = value;
     d.doctorEdited = true;
     d.note = "";
+    d.recheck = false;
+    d.recheckWhy = "";
     state.editsSinceRound = true;
     renderReason();
   }
@@ -1412,6 +1495,10 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     if (r.analysis.summary) L.push(`總結：${r.analysis.summary}`);
     if (r.analysis.red_flags.length) L.push("紅旗：" + r.analysis.red_flags.map((f) => f.finding + (f.action ? `（${f.action}）` : "")).join("；"));
     if ((r.analysis.categories || []).length) L.push("分類思考：" + r.analysis.categories.map((c) => `${c.category}（${c.verdict}）`).join("、"));
+    if (state.intake) {
+      if (state.intake.positives.length) L.push("病人看診前自填，有：" + state.intake.positives.join("、"));
+      if (state.intake.negatives.length) L.push("病人看診前自填，沒有（未經確認）：" + state.intake.negatives.join("、"));
+    }
     L.push("鑑別診斷：");
     for (const d of [...state.diffs.filter((x) => x.cant_miss), ...state.diffs.filter((x) => !x.cant_miss)]) L.push(`- ${d.name}（可能性 ${d.likelihood}／${d.status}${d.cant_miss ? "／必須排除" : ""}）`);
     if (r.analysis.next_steps.length) { L.push("下一步："); r.analysis.next_steps.forEach((s, i) => L.push(`${i + 1}. [${s.type}] ${s.item}`)); }
@@ -1476,12 +1563,19 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     if (!rec || !rec.cc) { box.className = "notice notice-warn"; box.textContent = "沒有找到看診前問診的紀錄，可能已經帶入過了。"; box.hidden = false; return; }
     if (Date.now() - (rec.at || 0) > 12 * 3600 * 1000) { box.className = "notice notice-warn"; box.textContent = "看診前問診的紀錄已經超過 12 小時，沒有帶入。"; box.hidden = false; return; }
     if (busy) return;
-    fillFromIntake(rec, "");
+    fillFromIntake(rec, "", 0);
   }
   // Fills the case form from a pre-visit interview record; label names its number on the clinic's list.
-  function fillFromIntake(rec, label) {
+  // num is the day's number on the clinic's list, 0 for a hand-over on the same device.
+  function fillFromIntake(rec, label, num) {
     state = newState();
-    state.case = { ...blankCase(), age: String(rec.age || ""), sex: rec.sex || "", cc: rec.cc, hpi: rec.hpi || "", pmh: rec.pmh || "" };
+    // Newer records keep "has / does not have / unsure / raw answers" apart; older ones carry one merged text.
+    const RAW = "【病人預問診原始回答】";
+    let hpi = str(rec.hpi), qa = "";
+    if (Array.isArray(rec.positives)) { hpi = str(rec.summaryHpi); qa = str(rec.qa); }
+    else if (hpi.includes(RAW)) { qa = hpi.slice(hpi.indexOf(RAW) + RAW.length).trim(); hpi = hpi.slice(0, hpi.indexOf(RAW)).trim(); }
+    state.case = { ...blankCase(), age: String(rec.age || ""), sex: rec.sex || "", cc: rec.cc, hpi, pmh: rec.pmh || "" };
+    state.intake = cleanIntake({ num, at: rec.at, who: rec.who, positives: rec.positives, negatives: rec.negatives, uncertain: rec.uncertain, alerts: rec.alerts, qa, emergency: rec.emergency });
     fillCaseForm(state.case);
     $("f-confirm").checked = false;
     reasonError = "";
@@ -1537,6 +1631,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     try {
       const d = await queueCall({ action: "list" });
       queue.items = Array.isArray(d.items) ? d.items : [];
+      queue.day = d.day || "";
       queue.state = "ok";
       queue.error = false;
     } catch (e) {
@@ -1547,7 +1642,22 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     queue.loading = false;
     renderQueue();
   }
+  // A patient stopped by the emergency check is told to go to the desk; this makes sure the doctor's page says so too.
+  const BASE_TITLE = document.title;
+  function numLabel(it) { return (it.day && queue.day && it.day !== queue.day ? "昨 " : "") + pad3(it.num); }
+  function renderUrgentBanner() {
+    const box = $("urgentBanner");
+    const urgent = queue.state === "ok" ? queue.items.filter((x) => x.urgent && !x.taken) : [];
+    box.hidden = !urgent.length;
+    document.title = (urgent.length ? "⚠ " : "") + BASE_TITLE;
+    if (!urgent.length) return;
+    box.replaceChildren(
+      h("strong", { text: `名單上有急症攔截還沒帶入：${urgent.map((x) => numLabel(x) + " 號").join("、")}。` }),
+      h("span", { text: "病人的畫面已經請他立刻告訴櫃台或護理人員。" }),
+      h("button", { type: "button", class: "btn", onclick: () => { location.hash = "#reason"; $("queuePanel").scrollIntoView({ block: "center", behavior: "smooth" }); } }, "看名單"));
+  }
   function renderQueue() {
+    renderUrgentBanner();
     const panel = $("queuePanel");
     panel.hidden = queue.state === "off" || (queue.state === "idle" && !queue.error);
     if (panel.hidden) return;
@@ -1586,7 +1696,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
   function queueRow(it) {
     const who = [it.sex, it.age ? `${it.age} 歲` : ""].filter(Boolean).join(" ");
     return h("div", { class: "q-item" + (it.urgent ? " urgent" : "") + (it.taken ? " taken" : "") },
-      h("span", { class: "q-num", text: pad3(it.num) }),
+      h("span", { class: "q-num", text: numLabel(it) }),
       h("span", { class: "hint", text: clock(it.at) }),
       who ? h("span", { text: who }) : null,
       it.urgent ? h("span", { class: "chip chip-flag", text: "急症攔截" }) : it.alerts ? h("span", { class: "chip chip-warn", text: "優先注意" }) : null,
@@ -1601,7 +1711,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
     try {
       const d = await queueCall({ action: "take", id: it.id });
       if (busy) return;
-      fillFromIntake(d.record, ` ${pad3(d.num)} 號的`);
+      fillFromIntake(d.record, ` ${pad3(d.num)} 號的`, d.num);
       it.taken = true;
       renderQueue();
     } catch (e) {
@@ -1671,7 +1781,7 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
   function list(items) { return items.length ? h("ul", null, items.map((t) => h("li", { text: t }))) : h("p", { class: "meta", text: "無" }); }
 
   function renderDx(d) {
-    const closed = d.status === "已排除" || d.status === "擱置";
+    const closed = (d.status === "已排除" || d.status === "擱置") && !d.recheck;
     const sel = h("select", { id: "status-" + d.id, "aria-label": d.name + " 的狀態", disabled: busy || state.isExample ? true : null, onchange: (e) => onStatusChange(d, e.target.value) },
       STATUSES.map((s) => h("option", { value: s, selected: s === d.status ? true : null }, s)));
     const warnDropped = d.dropped && d.cant_miss && !closed;
@@ -1696,7 +1806,10 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
         d.status_reason ? [h("dt", { text: "狀態理由" }), h("dd", { text: d.status_reason })] : null) : null,
       h("div", { class: "dx-foot" },
         h("label", { for: "status-" + d.id }, "狀態", sel),
-        warnDropped ? h("span", { class: "dx-warn", text: "必須排除但本輪未提及，請確認是否已排除。" }) : d.note ? h("span", { class: "dx-warn", text: d.note }) : null));
+        warnDropped ? h("span", { class: "dx-warn", text: "必須排除但本輪未提及，請確認是否已排除。" }) : d.note ? h("span", { class: "dx-warn", text: d.note }) : null),
+      d.recheck ? h("div", { class: "dx-recheck" },
+        h("span", { text: `新資料可能與你的判斷矛盾${d.recheckWhy ? "：" + d.recheckWhy : ""}。狀態仍以你為準（${d.status}），請重新確認。` }),
+        state.isExample ? null : h("button", { type: "button", class: "btn", disabled: busy ? true : null, onclick: () => { d.recheck = false; d.recheckWhy = ""; renderReason(); } }, `已確認，維持「${d.status}」`)) : null);
   }
 
   function renderCritic(r) {
@@ -1727,6 +1840,8 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
   function glance(r, a) {
     const open = state.diffs.filter((d) => d.cant_miss && d.status !== "已排除" && d.status !== "擱置");
     const rows = [];
+    const recheck = state.diffs.filter((d) => d.recheck);
+    if (recheck.length) rows.push(h("p", { class: "recheck" }, h("b", { text: "請重新確認：" }), recheck.map((d) => `${shortName(d.name)}（你標為${d.status}，新資料可能矛盾）`).join("、")));
     if (a.red_flags.length) rows.push(h("p", null, h("b", { text: "紅旗：" }), a.red_flags.slice(0, 2).map((f) => clip(f.finding, 70)).join("；")));
     if (open.length) rows.push(h("p", null, h("b", { text: "必須先排除：" }), open.slice(0, 6).map((d) => shortName(d.name)).join("、")));
     if (r.critic && r.critic.key_question) rows.push(h("p", null, h("b", { text: "現在最該做的事：" }), r.critic.key_question));
@@ -1820,9 +1935,33 @@ footer.page-foot .wrap { padding-block: 16px 24px; color: var(--muted); font-siz
       h("a", { href: `https://pubmed.ncbi.nlm.nih.gov/${encodeURIComponent(it.pmid)}/`, target: "_blank", rel: "noopener noreferrer" }, it.title || `PMID ${it.pmid}`),
       h("span", { class: "meta" }, [it.journal, it.year].filter(Boolean).length ? `　${[it.journal, it.year].filter(Boolean).join(" · ")}` : ""))));
   }
+  // What the patient answered before the visit, shown above the case fields while it is attached to this case.
+  function renderIntakeCard() {
+    const box = $("intakeCard");
+    const k = state && state.intake;
+    box.hidden = !k;
+    if (!k) return;
+    const c = state.case;
+    const who = [c.sex, c.age ? `${c.age} 歲` : ""].filter(Boolean).join(" ");
+    const row = (label, items, cls) => (items.length ? h("p", { class: cls || null }, h("span", { class: "k", text: label }), items.join("、")) : null);
+    box.replaceChildren(...[
+      h("div", { class: "ic-head" },
+        h("strong", { text: k.num ? `${pad3(k.num)} 號` : "看診前問診" }),
+        who ? h("span", { text: who }) : null,
+        h("span", { class: "k", text: [k.at ? `${clock(k.at)} 病人自填` : "病人自填", k.who].filter(Boolean).join("・") }),
+        h("button", { type: "button", class: "btn btn-quiet", disabled: busy ? true : null, title: "不再把病人自填的回答附在這個病例上", onclick: () => { state.intake = null; renderReason(); } }, "移除")),
+      k.emergency ? h("p", { class: "flag", text: `問診時有急症攔截：${k.emergency}` }) : null,
+      row("優先注意：", k.alerts, "flag"),
+      row("病人說有：", k.positives),
+      row("病人回答沒有（自述，還沒當面確認）：", k.negatives),
+      row("不確定或沒回答：", k.uncertain),
+      k.qa ? h("details", null, h("summary", { text: "看原始問答" }), h("pre", { text: k.qa })) : null,
+    ].filter(Boolean));
+  }
   function renderReason() {
     const out = $("reasonOut");
     if (!out || !state) return;
+    renderIntakeCard();
     const kids = [];
     if (state.isExample) {
       kids.push(h("div", { class: "notice notice-info" }, h("strong", { text: "範例：" }),

@@ -102,6 +102,7 @@ async function fillCase(page, c) {
   for (const [key, id] of Object.entries(FIELD_IDS)) {
     const v = c[key];
     if (v === undefined || v === null || v === '') continue;
+    await page.evaluate((fid) => { const el = document.getElementById(fid); const d = el && el.closest('details'); if (d) d.open = true; }, id);
     if (SELECT_KEYS.has(key)) await page.selectOption(`#${id}`, { label: String(v) });
     else await page.fill(`#${id}`, String(v));
   }
@@ -153,12 +154,17 @@ function scoreRun(caseDef, data) {
     ? caseDef.expect.categories.map((e) => ({ label: e.label, pass: new RegExp(e.pattern, 'i').test(data.cats || '') }))
     : null;
   const served = data.meta.includes('·') ? data.meta.split('·').pop().trim() : '';
+  // expect.max_must: informational only. Runs with more must-rule-out diagnoses than this are marked WARN.
+  const maxMust = (caseDef.expect && Number.isInteger(caseDef.expect.max_must)) ? caseDef.expect.max_must : null;
   return {
     expectations,
     categories,
     bedside_ok: bedsideOk,
     simplified: (data.all.match(SIMPLIFIED) || []).length,
     served_model: served || '(unknown)',
+    must_count: musts.length,
+    max_must: maxMust,
+    must_over: maxMust !== null && musts.length > maxMust,
   };
 }
 
@@ -180,13 +186,35 @@ async function runJob(browser, opts, caseDef, model, run) {
   try {
     const page = await ctx.newPage();
     page.on('pageerror', (e) => pageErrors.push(String(e)));
-    await page.goto(`${opts.site}/ddx`);
-    await page.waitForTimeout(1200);
-    await page.click('#btn-clear');
-    await page.waitForTimeout(300);
-    if (await page.isVisible('#btn-reset-yes')) await page.click('#btn-reset-yes');
-    await fillCase(page, caseDef.case);
-    await page.click('#btn-analyze');
+    const intake = (caseDef.intake && typeof caseDef.intake === 'object') ? caseDef.intake : null;
+    if (intake) {
+      // Hand the pre-visit intake record to the site through localStorage, once per browser session.
+      await ctx.addInitScript((rec) => {
+        try {
+          if (!sessionStorage.getItem('eval-intake-set')) {
+            localStorage.setItem('ddx-intake-handoff', JSON.stringify({ ...rec, at: Date.now() }));
+            sessionStorage.setItem('eval-intake-set', '1');
+          }
+        } catch (_) { /* ignore */ }
+      }, intake);
+      await page.goto(`${opts.site}/ddx#intake`);
+      await page.waitForTimeout(1500);
+      if (!(await page.inputValue('#f-cc'))) throw new Error('intake record was not imported');
+      await page.waitForTimeout(1000);
+      // The site may or may not start the analysis by itself after the import.
+      if (!(await page.$('#reasonOut .progress'))) {
+        await page.check('#f-confirm');
+        await page.click('#btn-analyze');
+      }
+    } else {
+      await page.goto(`${opts.site}/ddx`);
+      await page.waitForTimeout(1200);
+      await page.click('#btn-clear');
+      await page.waitForTimeout(300);
+      if (await page.isVisible('#btn-reset-yes')) await page.click('#btn-reset-yes');
+      await fillCase(page, caseDef.case);
+      await page.click('#btn-analyze');
+    }
     const t0 = Date.now();
     for (let k = 0; k < POLL_MAX; k++) {
       await page.waitForTimeout(POLL_MS);
@@ -209,7 +237,15 @@ async function runJob(browser, opts, caseDef, model, run) {
       served_model: scores.served_model,
       run,
       secs,
-      scores: { expectations: scores.expectations, categories: scores.categories, bedside_ok: scores.bedside_ok, simplified: scores.simplified },
+      scores: {
+        expectations: scores.expectations,
+        categories: scores.categories,
+        bedside_ok: scores.bedside_ok,
+        simplified: scores.simplified,
+        must_count: scores.must_count,
+        max_must: scores.max_must,
+        must_over: scores.must_over,
+      },
       verdict: data.verdict,
       problems,
       meta: data.meta,
@@ -230,7 +266,7 @@ async function runJob(browser, opts, caseDef, model, run) {
       served_model: '(error)',
       run,
       secs,
-      scores: { expectations: failedExpectations(caseDef), categories: null, bedside_ok: null, simplified: 0 },
+      scores: { expectations: failedExpectations(caseDef), categories: null, bedside_ok: null, simplified: 0, must_count: null, max_must: null, must_over: false },
       verdict: '(none)',
       problems: [`error: ${msg}`, ...pageErrors],
       meta: '',
@@ -257,13 +293,17 @@ function formatRun(r) {
       return `${e.label}:PASS(${e.rank}${e.from_critic ? ', from critic' : ''})`;
     }).join('; ')
     : '-';
+  const mc = r.scores.must_count;
+  const must = typeof mc !== 'number'
+    ? 'must: -'
+    : `must: ${mc}` + (r.scores.must_over ? ` WARN(>${r.scores.max_must})` : '');
   const bs = r.scores.bedside_ok === null ? '-' : r.scores.bedside_ok ? 'yes' : 'no';
   const cats = r.scores.categories
     ? `categories ${r.scores.categories.filter((c) => c.pass).length}/${r.scores.categories.length}` +
       (r.scores.categories.some((c) => !c.pass) ? ` (missing: ${r.scores.categories.filter((c) => !c.pass).map((c) => c.label).join(', ')})` : '')
     : 'categories -';
   const problems = r.problems.length ? r.problems.join(' / ') : 'none';
-  return [r.case, r.served_model, r.run, r.secs, exps, cats, `bedside ok: ${bs}`, `simplified chars: ${r.scores.simplified}`, r.verdict, problems].join(' | ');
+  return [r.case, r.served_model, r.run, r.secs, exps, must, cats, `bedside ok: ${bs}`, `simplified chars: ${r.scores.simplified}`, r.verdict, problems].join(' | ');
 }
 
 function printSummary(results, cases, models) {
@@ -278,6 +318,16 @@ function printSummary(results, cases, models) {
       for (const label of labels) {
         const passes = group.filter((r) => r.scores.expectations.some((e) => e.label === label && e.pass)).length;
         console.log(`  ${label}: ${passes}/${group.length}`);
+      }
+      const counts = group.map((r) => r.scores.must_count).filter((n) => typeof n === 'number');
+      if (counts.length) {
+        const avg = counts.reduce((a, b) => a + b, 0) / counts.length;
+        console.log(`  must-rule-out count: ${Math.min(...counts)}–${Math.max(...counts)} (avg ${avg.toFixed(1)})`);
+      }
+      const maxMust = c.expect && c.expect.max_must;
+      if (Number.isInteger(maxMust)) {
+        const over = group.filter((r) => r.scores.must_over === true).length;
+        console.log(`  over max_must (${maxMust}): ${over}/${group.length}`);
       }
       for (const e of (c.expect && c.expect.categories) || []) {
         const ok = group.filter((r) => (r.scores.categories || []).some((x) => x.label === e.label && x.pass)).length;
@@ -330,7 +380,7 @@ async function main() {
   const jobs = [];
   for (const c of cases) for (const m of opts.models) for (let r = 1; r <= opts.runs; r++) jobs.push({ c, m, r });
   console.log(`共 ${jobs.length} 次執行，並行 ${Math.min(opts.concurrency, jobs.length)}，結果寫到 ${opts.out}`);
-  console.log('case | model served | run | secs | expectations | bedside ok | simplified chars | verdict | problems');
+  console.log('case | model served | run | secs | expectations | must | bedside ok | simplified chars | verdict | problems');
 
   const browser = await chromium.launch(launchOptions());
   const results = [];

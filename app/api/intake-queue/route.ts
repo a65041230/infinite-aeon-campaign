@@ -30,6 +30,14 @@ type IntakeRecord = {
   pmh: string;
   emergency: string;
   alerts: string[];
+  // Version 2: what the patient has, denies and is unsure of, kept apart from the raw answers.
+  v: number;
+  positives?: string[];
+  negatives?: string[];
+  uncertain?: string[];
+  summaryHpi?: string;
+  qa?: string;
+  who?: string;
   at: number;
 };
 
@@ -86,18 +94,33 @@ function unseal(code: string, id: string, box: string): IntakeRecord | null {
 function text(v: unknown, max: number): string {
   return typeof v === "string" || typeof v === "number" ? String(v).trim().slice(0, max) : "";
 }
+function texts(v: unknown, maxItems: number, maxChars: number): string[] {
+  return (Array.isArray(v) ? v : []).map((a) => text(a, maxChars)).filter(Boolean).slice(0, maxItems);
+}
 // Keeps only the fields the workbench fills in; the time is the server's.
 function cleanRecord(v: unknown): IntakeRecord | null {
   if (!v || typeof v !== "object") return null;
   const o = v as Record<string, unknown>;
+  const split = Array.isArray(o.positives)
+    ? {
+        positives: texts(o.positives, 30, 200),
+        negatives: texts(o.negatives, 30, 200),
+        uncertain: texts(o.uncertain, 30, 200),
+        summaryHpi: text(o.summaryHpi, 4_000),
+        qa: text(o.qa, 10_000),
+      }
+    : {};
   const rec: IntakeRecord = {
+    v: split.positives ? 2 : 1,
+    ...split,
+    ...(text(o.who, 20) ? { who: text(o.who, 20) } : {}),
     age: text(o.age, 8),
     sex: text(o.sex, 4),
     cc: text(o.cc, 500),
     hpi: text(o.hpi, 12_000),
     pmh: text(o.pmh, 3_000),
     emergency: text(o.emergency, 500),
-    alerts: (Array.isArray(o.alerts) ? o.alerts : []).map((a) => text(a, 300)).filter(Boolean).slice(0, 3),
+    alerts: texts(o.alerts, 3, 300),
     at: Date.now(),
   };
   return rec.cc ? rec : null;
@@ -178,18 +201,19 @@ async function list(sql: Sql, code: string, clinic: string): Promise<Response> {
   // Opening the list also clears expired records, so they do not wait for the next patient.
   const [, found] = await sql.transaction([
     sql`DELETE FROM intake_queue WHERE created_at < now() - make_interval(hours => ${KEEP_HOURS})`,
-    sql`SELECT id, num, taken_at, urgent, box FROM intake_queue
-        WHERE clinic = ${clinic} AND day = ${day}::date
+    sql`SELECT id, num, to_char(day, 'YYYY-MM-DD') AS day, taken_at, urgent, box FROM intake_queue
+        WHERE clinic = ${clinic}
           AND created_at > now() - make_interval(hours => ${KEEP_HOURS})
-        ORDER BY num`,
+        ORDER BY created_at, num`,
   ]);
-  const rows = found as { id: string; num: number; taken_at: unknown; urgent: boolean; box: string }[];
+  const rows = found as { id: string; num: number; day: string; taken_at: unknown; urgent: boolean; box: string }[];
   const items = rows.flatMap((r) => {
     const rec = unseal(code, r.id, r.box);
     if (!rec) return [];
     return [{
       id: r.id,
       num: r.num,
+      day: r.day,
       at: rec.at,
       taken: r.taken_at != null,
       urgent: r.urgent,

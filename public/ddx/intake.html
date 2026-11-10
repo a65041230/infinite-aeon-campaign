@@ -79,6 +79,7 @@ button[aria-pressed="true"] { background: var(--accent); border-color: var(--acc
 .staff { border: 2px dashed var(--line); }
 .staff h2 { font-size: 17px; }
 .record { font-size: 14px; white-space: pre-wrap; background: var(--surface-2); border-radius: 10px; padding: 12px; max-height: 45vh; overflow: auto; margin-top: 10px; }
+#recordFold > summary { cursor: pointer; color: var(--muted); font-size: 14px; margin-top: 10px; }
 .btnrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .btnrow .btn { margin-top: 8px; }
 footer { color: var(--muted); font-size: 13px; text-align: center; padding: 0 16px 24px; }
@@ -129,7 +130,7 @@ footer { color: var(--muted); font-size: 13px; text-align: center; padding: 0 16
     <div class="card staff">
       <h2>給醫護人員</h2>
       <p class="lead" id="staffLead" style="margin-bottom:0">按「帶入醫師工作台」，這份紀錄會自動填進鑑別工作台；醫師補上理學檢查與檢驗後就能分析。</p>
-      <div class="record" id="record"></div>
+      <details id="recordFold" open><summary>紀錄內容</summary><div class="record" id="record"></div></details>
       <button class="btn" id="handoffBtn" type="button">帶入醫師工作台</button>
       <div class="btnrow"><button class="btn ghost" id="copyBtn" type="button">複製紀錄</button><button class="btn ghost" id="nextBtn" type="button">換下一位病人</button></div>
     </div>
@@ -491,7 +492,13 @@ footer { color: var(--muted); font-size: 13px; text-align: center; padding: 0 16
     if (s && s.negatives.length) parts.push("相關陰性：" + s.negatives.join("、"));
     if (s && s.uncertain.length) parts.push("病人不確定或未回答：" + s.uncertain.join("、"));
     parts.push("【病人預問診原始回答】\n" + qaText());
-    return { v: 1, at: Date.now(), age: b.age, sex: b.sex, cc: (s && s.cc) || b.cc, hpi: parts.join("\n"), pmh: (s && s.pmh) || b.hx, emergency: S.emergency, alerts: s ? s.alerts : [] };
+    // hpi is the merged text older workbench pages read; the split fields let the workbench tell
+    // "the patient has it" from "the patient said no", which decides what must be ruled out.
+    return {
+      v: 2, at: Date.now(), age: b.age, sex: b.sex, cc: (s && s.cc) || b.cc, hpi: parts.join("\n"), pmh: (s && s.pmh) || b.hx, emergency: S.emergency,
+      alerts: s ? s.alerts : [], positives: s ? s.positives : [], negatives: s ? s.negatives : [], uncertain: s ? s.uncertain : [],
+      summaryHpi: s ? s.hpi : "", qa: qaText(),
+    };
   }
   function handoff() {
     const rec = buildRecord();
@@ -520,6 +527,7 @@ footer { color: var(--muted); font-size: 13px; text-align: center; padding: 0 16
       box.replaceChildren(h("p", { text: "你的看診前問診號碼" }), h("p", { class: "qnum", text: no }), h("p", { text: "看診時請告訴醫師這個號碼。" }));
       $("staffLead").textContent = `這份紀錄已經在醫師工作台的「今日看診前問診」名單上（${no} 號），醫師點一下就能帶入。`;
       $("handoffBtn").hidden = true;
+      $("recordFold").open = false;
       return;
     }
     const stale = data && data.error === "unknown_clinic";
@@ -541,7 +549,7 @@ footer { color: var(--muted); font-size: 13px; text-align: center; padding: 0 16
     for (const b of document.querySelectorAll("#sex button, #hxChips button")) b.setAttribute("aria-pressed", "false");
     $("kwUrgent").hidden = true;
     $("stepDone").hidden = true; $("stepAsk").hidden = true; $("netBox").hidden = true;
-    $("queueBox").hidden = true; $("handoffBtn").hidden = false; $("staffLead").textContent = STAFF_LEAD;
+    $("queueBox").hidden = true; $("handoffBtn").hidden = false; $("staffLead").textContent = STAFF_LEAD; $("recordFold").open = true;
     $("stepStart").hidden = false;
     window.scrollTo({ top: 0 });
   }

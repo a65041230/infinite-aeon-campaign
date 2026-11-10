@@ -71,13 +71,17 @@ function pickProvider(modelOverride?: string): Provider | null {
 
 // Best-effort limiter per server instance. The real cost guard is the spend
 // limit set with the API provider.
+// Patients in one waiting room often share the clinic's network address, and each
+// interview takes up to four short calls, so interviews are counted apart from the
+// doctor's analyses and get more room.
 const WINDOW_MS = 10 * 60_000;
 const MAX_PER_WINDOW = 30;
+const MAX_INTAKE_PER_WINDOW = 150;
 const hits = new Map<string, number[]>();
-function rateLimited(client: string): boolean {
+function rateLimited(client: string, max: number): boolean {
   const now = Date.now();
   const recent = (hits.get(client) ?? []).filter((t) => now - t < WINDOW_MS);
-  const limited = recent.length >= MAX_PER_WINDOW;
+  const limited = recent.length >= max;
   if (!limited) recent.push(now);
   if (hits.size > 5000) hits.clear();
   hits.set(client, recent);
@@ -314,7 +318,6 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const client = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
-  if (rateLimited(client)) return json(429, { error: "rate_limited" });
 
   let body: { task?: unknown; prompt?: unknown };
   try {
@@ -328,6 +331,10 @@ export async function POST(req: Request): Promise<Response> {
     return json(400, { error: "invalid_request" });
   }
   if (prompt.length > MAX_PROMPT_CHARS) return json(413, { error: "prompt_too_large" });
+  const interview = task === "intake" || task === "intake_summary";
+  if (rateLimited(interview ? `intake:${client}` : client, interview ? MAX_INTAKE_PER_WINDOW : MAX_PER_WINDOW)) {
+    return json(429, { error: "rate_limited" });
+  }
 
   // The platform stops this function at 300 s. Stop the AI call a little
   // earlier so the visitor gets a clear "took too long" instead of a dropped
